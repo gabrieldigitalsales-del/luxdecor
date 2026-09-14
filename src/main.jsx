@@ -1,6 +1,21 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './styles.css';
+import { supabaseConfigured } from './lib/supabase';
+import {
+  fetchCatalog,
+  fetchSiteSettings,
+  getSession,
+  signIn,
+  signOut,
+  onAuthChange,
+  adminFetchProducts,
+  saveProduct,
+  setProductCover,
+  deleteProduct,
+  saveSettings,
+  replaceSiteImage,
+} from './services/catalog';
 
 const A='/assets/';
 const INITIAL_PRODUCTS=[
@@ -125,4 +140,23 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
  </aside></div>
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+class ErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={error:null};}
+  static getDerivedStateFromError(error){return {error};}
+  componentDidCatch(error,info){console.error('Lux Decor render error:',error,info);}
+  render(){
+    if(this.state.error){
+      return <div style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:'32px',fontFamily:'system-ui',background:'#f6f4ef',color:'#0b1d33'}}>
+        <div style={{maxWidth:620,border:'1px solid rgba(11,29,51,.18)',padding:32,background:'rgba(255,255,255,.82)'}}>
+          <img src={A+'logo-lockup-navy.png'} alt="Lux Decor" style={{width:190,maxWidth:'60%',marginBottom:24}}/>
+          <h1 style={{fontSize:28,margin:'0 0 12px'}}>O site encontrou um erro ao iniciar.</h1>
+          <p style={{lineHeight:1.6,margin:0}}>Atualize a página. Se estiver rodando localmente, confirme que abriu pelo Vite com <b>npm run dev</b> e não diretamente pelo arquivo index.html.</p>
+          <details style={{marginTop:18,opacity:.75}}><summary>Detalhes técnicos</summary><pre style={{whiteSpace:'pre-wrap',fontSize:12}}>{String(this.state.error?.message||this.state.error)}</pre></details>
+        </div>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
+
+createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);

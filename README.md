@@ -1,104 +1,49 @@
-# Lux Decor — React/Vite + Supabase exclusivo + Vercel
+# Lux Decor — React/Vite + Supabase
 
-Versão preparada para produção. O catálogo público continua abrindo com os assets locais mesmo se as variáveis do Supabase estiverem ausentes ou temporariamente indisponíveis, evitando tela branca. Quando o Supabase está configurado, produtos, configurações e uploads do Admin passam a ser persistentes e compartilhados entre todos os dispositivos.
+## CORREÇÃO DA TELA BRANCA
+Esta versão corrige um erro da versão anterior: o `main.jsx` usava as funções do Supabase sem importar o módulo correspondente. Isso gerava um `ReferenceError` logo na inicialização e deixava a tela branca.
 
-## O que já está integrado
+Também foi adicionado um Error Boundary visível, para que um erro de renderização não resulte mais em uma página totalmente branca.
 
-- React + Vite.
-- Supabase Auth para login do Admin.
-- Banco separado para produtos, categorias, imagens e configurações.
-- Storage separado em `products` e `site-assets`.
-- RLS: visitante só lê; Admin autenticado e autorizado pode gravar.
-- Upload de várias imagens por produto.
-- Upload permanente das imagens fixas: 4 heroes, editorial e ambientes.
-- WhatsApp e Instagram persistidos em `site_settings`.
-- Catálogo inicial incluído no SQL.
-- Fallback seguro para não deixar o site em branco.
-- `vercel.json` pronto para SPA.
+## Rodar localmente
+Este é um projeto React/Vite. **Não abra o `index.html` com dois cliques.**
 
-## 1. Criar um projeto Supabase EXCLUSIVO
-
-Crie um projeto novo somente para a Lux Decor. Não reutilize o banco de outro sistema.
-
-Depois abra **SQL Editor > New query** e execute:
-
-`supabase/migrations/001_lux_decor.sql`
-
-Isso cria tabelas, buckets, políticas RLS e o catálogo inicial.
-
-## 2. Criar o usuário administrador
-
-No Supabase, abra **Authentication > Users > Add user** e crie o e-mail/senha do administrador.
-
-Depois rode no SQL Editor, trocando o e-mail:
-
-```sql
-insert into public.admin_users (user_id)
-select id
-from auth.users
-where email = 'SEU-EMAIL-DE-ADMIN@EMAIL.COM'
-on conflict (user_id) do nothing;
-```
-
-Apenas usuários presentes em `admin_users` conseguem alterar o catálogo ou fazer upload.
-
-## 3. Variáveis de ambiente
-
-Copie `.env.example` para `.env.local` durante o desenvolvimento:
-
-```env
-VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxx
-```
-
-Use a **publishable key** do Supabase. Nunca coloque `service_role` no React ou no Vercel.
-
-## 4. Rodar no PC
+No PowerShell, dentro da pasta do projeto:
 
 ```powershell
 npm install
 npm run dev
 ```
 
-## 5. Publicar no Vercel
+Depois abra o endereço exibido pelo Vite, normalmente:
 
-Importe a pasta/repositório no Vercel e adicione em **Settings > Environment Variables**:
+`http://localhost:5173`
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+## Supabase
+Sem `.env`, o site abre em modo local/fallback e o catálogo continua visível.
 
-Build command: `npm run build`
+Copie `.env.example` para `.env.local` e preencha:
 
-Output directory: `dist`
+```env
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
 
-Depois faça um novo deploy.
+Você também pode usar `VITE_SUPABASE_ANON_KEY` por compatibilidade.
 
-## Admin
+## Banco
+Execute no Supabase SQL Editor:
 
-Abra o site e clique em **Admin** ou acesse `/#admin`.
+`supabase/migrations/001_lux_decor.sql`
 
-O painel solicita login quando o Supabase está conectado. Nele você pode:
+Depois crie o usuário em Authentication e associe-o ao Admin usando:
 
-- cadastrar/editar/excluir produtos;
-- mostrar preço ou `Sob consulta`;
-- publicar/ocultar produto;
-- cadastrar características;
-- enviar várias imagens;
-- definir capa;
-- trocar WhatsApp e Instagram;
-- trocar hero, editorial e imagens de ambientes.
+`supabase/BOOTSTRAP_ADMIN.sql`
 
-## Estrutura do banco
+## Vercel
+- Framework: Vite
+- Build command: `npm run build`
+- Output: `dist`
+- Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` em Project Settings > Environment Variables.
 
-- `admin_users`: usuários autorizados no painel.
-- `categories`: categorias do catálogo.
-- `products`: produto e informações comerciais.
-- `product_images`: galeria de cada produto.
-- `site_settings`: WhatsApp e Instagram.
-- `site_images`: imagens institucionais editáveis.
-- Storage `products`: fotos de produtos.
-- Storage `site-assets`: imagens de hero/ambientes/editorial.
-
-## Segurança
-
-O projeto não usa `service_role` no frontend. As operações de escrita dependem de sessão autenticada **e** da presença do usuário em `admin_users`. As políticas estão no SQL da migration.
+O arquivo `vercel.json` já está incluído.
