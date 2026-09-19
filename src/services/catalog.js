@@ -24,8 +24,8 @@ const toProduct = (row) => {
 export async function fetchCatalog() {
   if (!supabaseConfigured) return null;
   const { data, error } = await supabase
-    .from('products')
-    .select('*, category:categories(id,name), product_images(id,url,sort_order,is_cover)')
+    .from('luxdecor_products')
+    .select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,sort_order,is_cover)')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false });
@@ -36,8 +36,8 @@ export async function fetchCatalog() {
 export async function fetchSiteSettings() {
   if (!supabaseConfigured) return null;
   const [{data:settings,error:sErr},{data:images,error:iErr}] = await Promise.all([
-    supabase.from('site_settings').select('*').eq('id',1).maybeSingle(),
-    supabase.from('site_images').select('key,url')
+    supabase.from('luxdecor_site_settings').select('*').eq('id',1).maybeSingle(),
+    supabase.from('luxdecor_site_images').select('key,url')
   ]);
   if (sErr) throw sErr;
   if (iErr) throw iErr;
@@ -77,7 +77,7 @@ export async function saveProduct(product,newFiles=[]){
   const chosenPendingIndex=String(product.image||'').startsWith('blob:')?pendingBlobs.indexOf(product.image):-1;
   const uploaded=[];
   for(let i=0;i<newFiles.length;i++){
-    const up=await uploadWithSignedUrl(newFiles[i],'products',String(id));
+    const up=await uploadWithSignedUrl(newFiles[i],'luxdecor-products',String(id));
     uploaded.push(up);
     await adminApi('addProductImage',{productId:id,url:up.url,path:up.path,sortOrder:100+i,isCover:false});
   }
@@ -94,7 +94,7 @@ export async function deleteProduct(productId){return adminApi('deleteProduct',{
 export async function saveSettings(settings){return adminApi('saveSettings',{settings:{whatsapp:settings.whatsapp,instagram:settings.instagram}});}
 
 export async function replaceSiteImage(key,file){
-  const up=await uploadWithSignedUrl(file,'site-assets',key);
+  const up=await uploadWithSignedUrl(file,'luxdecor-site-assets',key);
   await adminApi('replaceSiteImage',{key,url:up.url,path:up.path});
   return up.url;
 }

@@ -62,7 +62,7 @@ export default async function handler(req,res){
 
     const sb=service();
     if(action==='products'){
-      const {data,error}=await sb.from('products').select('*, category:categories(id,name), product_images(id,url,storage_path,sort_order,is_cover)').order('sort_order').order('created_at',{ascending:false});
+      const {data,error}=await sb.from('luxdecor_products').select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,storage_path,sort_order,is_cover)').order('sort_order').order('created_at',{ascending:false});
       if(error) throw error; return json(res,200,{products:(data||[]).map(normalizeProduct)});
     }
     if(action==='saveProduct'){
@@ -70,27 +70,27 @@ export default async function handler(req,res){
       const payload={name:String(p.name||'').trim(),category_id:p.categoryId||null,category_name:p.category||null,price:p.price===''||p.price==null?null:Number(p.price),price_label:p.priceLabel||'Sob consulta',description:p.desc||'',features:Array.isArray(p.features)?p.features:[],badge:p.tag||null,is_active:p.isActive!==false,sort_order:Number(p.sortOrder||0),updated_at:new Date().toISOString()};
       if(!payload.name) return json(res,400,{error:'Informe o nome do produto.'});
       let id=p.id;
-      if(id){ const {error}=await sb.from('products').update(payload).eq('id',id); if(error)throw error; }
-      else { const {data,error}=await sb.from('products').insert(payload).select('id').single(); if(error)throw error; id=data.id; }
+      if(id){ const {error}=await sb.from('luxdecor_products').update(payload).eq('id',id); if(error)throw error; }
+      else { const {data,error}=await sb.from('luxdecor_products').insert(payload).select('id').single(); if(error)throw error; id=data.id; }
       return json(res,200,{id});
     }
     if(action==='deleteProduct'){
-      const id=body.productId; const {data:imgs}=await sb.from('product_images').select('storage_path').eq('product_id',id); const paths=(imgs||[]).map(x=>x.storage_path).filter(Boolean); if(paths.length)await sb.storage.from('products').remove(paths); const {error}=await sb.from('products').delete().eq('id',id); if(error)throw error; return json(res,200,{ok:true});
+      const id=body.productId; const {data:imgs}=await sb.from('luxdecor_product_images').select('storage_path').eq('product_id',id); const paths=(imgs||[]).map(x=>x.storage_path).filter(Boolean); if(paths.length)await sb.storage.from('luxdecor-products').remove(paths); const {error}=await sb.from('luxdecor_products').delete().eq('id',id); if(error)throw error; return json(res,200,{ok:true});
     }
     if(action==='setCover'){
-      const {error}=await sb.from('products').update({cover_url:body.url||null,updated_at:new Date().toISOString()}).eq('id',body.productId); if(error)throw error; return json(res,200,{ok:true});
+      const {error}=await sb.from('luxdecor_products').update({cover_url:body.url||null,updated_at:new Date().toISOString()}).eq('id',body.productId); if(error)throw error; return json(res,200,{ok:true});
     }
     if(action==='saveSettings'){
-      const s=body.settings||{}; const {error}=await sb.from('site_settings').upsert({id:1,whatsapp:s.whatsapp||'',instagram:s.instagram||'',updated_at:new Date().toISOString()}); if(error)throw error; return json(res,200,{ok:true});
+      const s=body.settings||{}; const {error}=await sb.from('luxdecor_site_settings').upsert({id:1,whatsapp:s.whatsapp||'',instagram:s.instagram||'',updated_at:new Date().toISOString()}); if(error)throw error; return json(res,200,{ok:true});
     }
     if(action==='uploadUrl'){
-      const bucket=body.bucket==='site-assets'?'site-assets':'products'; const ext=safeExt(body.fileName,body.contentType); const folder=String(body.folder||'catalog').replace(/[^a-zA-Z0-9/_-]/g,'-'); const path=`${folder}/${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}.${ext}`; const {data,error}=await sb.storage.from(bucket).createSignedUploadUrl(path); if(error)throw error; return json(res,200,{path,token:data.token});
+      const bucket=body.bucket==='luxdecor-site-assets'?'luxdecor-site-assets':'luxdecor-products'; const ext=safeExt(body.fileName,body.contentType); const folder=String(body.folder||'catalog').replace(/[^a-zA-Z0-9/_-]/g,'-'); const path=`${folder}/${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}.${ext}`; const {data,error}=await sb.storage.from(bucket).createSignedUploadUrl(path); if(error)throw error; return json(res,200,{path,token:data.token});
     }
     if(action==='addProductImage'){
-      const {error}=await sb.from('product_images').insert({product_id:body.productId,url:body.url,storage_path:body.path,sort_order:Number(body.sortOrder||100),is_cover:Boolean(body.isCover)}); if(error)throw error; return json(res,200,{ok:true});
+      const {error}=await sb.from('luxdecor_product_images').insert({product_id:body.productId,url:body.url,storage_path:body.path,sort_order:Number(body.sortOrder||100),is_cover:Boolean(body.isCover)}); if(error)throw error; return json(res,200,{ok:true});
     }
     if(action==='replaceSiteImage'){
-      const {data:old}=await sb.from('site_images').select('storage_path').eq('key',body.key).maybeSingle(); const {error}=await sb.from('site_images').upsert({key:body.key,url:body.url,storage_path:body.path,updated_at:new Date().toISOString()}); if(error)throw error; if(old?.storage_path&&old.storage_path!==body.path)await sb.storage.from('site-assets').remove([old.storage_path]); return json(res,200,{ok:true});
+      const {data:old}=await sb.from('luxdecor_site_images').select('storage_path').eq('key',body.key).maybeSingle(); const {error}=await sb.from('luxdecor_site_images').upsert({key:body.key,url:body.url,storage_path:body.path,updated_at:new Date().toISOString()}); if(error)throw error; if(old?.storage_path&&old.storage_path!==body.path)await sb.storage.from('luxdecor-site-assets').remove([old.storage_path]); return json(res,200,{ok:true});
     }
     return json(res,400,{error:'Ação administrativa inválida.'});
   }catch(error){ console.error('Lux Decor admin API:',error); return json(res,500,{error:error?.message||'Erro interno no painel.'}); }

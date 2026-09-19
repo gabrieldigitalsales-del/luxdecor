@@ -53,3 +53,18 @@ npm run dev
 ```
 
 As rotas `/api/admin` são funções serverless do Vercel. Para testar o painel completo localmente, use `vercel dev` ou publique no Vercel.
+
+
+## Isolamento de banco Lux Decor
+
+Esta versão usa **somente nomes exclusivos da Lux Decor** no Supabase:
+
+- `luxdecor_categories`
+- `luxdecor_products`
+- `luxdecor_product_images`
+- `luxdecor_site_settings`
+- `luxdecor_site_images`
+- bucket `luxdecor-products`
+- bucket `luxdecor-site-assets`
+
+Ela não lê nem grava nas tabelas genéricas `products`, `categories`, `product_images`, `site_settings` ou `site_images`.
