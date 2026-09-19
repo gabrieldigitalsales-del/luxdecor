@@ -89,6 +89,16 @@ export default async function handler(req,res){
     if(action==='addProductImage'){
       const {error}=await sb.from('luxdecor_product_images').insert({product_id:body.productId,url:body.url,storage_path:body.path,sort_order:Number(body.sortOrder||100),is_cover:Boolean(body.isCover)}); if(error)throw error; return json(res,200,{ok:true});
     }
+    if(action==='removeProductImage'){
+      const {data:img,error:findError}=await sb.from('luxdecor_product_images').select('id,storage_path').eq('product_id',body.productId).eq('url',body.url).maybeSingle();
+      if(findError)throw findError;
+      if(img?.storage_path)await sb.storage.from('luxdecor-products').remove([img.storage_path]);
+      if(img?.id){const {error}=await sb.from('luxdecor_product_images').delete().eq('id',img.id);if(error)throw error;}
+      const {data:prod}=await sb.from('luxdecor_products').select('cover_url').eq('id',body.productId).maybeSingle();
+      if(prod?.cover_url===body.url)await sb.from('luxdecor_products').update({cover_url:null,updated_at:new Date().toISOString()}).eq('id',body.productId);
+      return json(res,200,{ok:true});
+    }
+    if(action==='classifyImage') return json(res,410,{error:'A análise de imagens agora usa o Ollama local diretamente no navegador.'});
     if(action==='replaceSiteImage'){
       const {data:old}=await sb.from('luxdecor_site_images').select('storage_path').eq('key',body.key).maybeSingle(); const {error}=await sb.from('luxdecor_site_images').upsert({key:body.key,url:body.url,storage_path:body.path,updated_at:new Date().toISOString()}); if(error)throw error; if(old?.storage_path&&old.storage_path!==body.path)await sb.storage.from('luxdecor-site-assets').remove([old.storage_path]); return json(res,200,{ok:true});
     }

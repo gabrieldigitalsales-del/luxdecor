@@ -93,6 +93,84 @@ export async function setProductCover(productId,url){return adminApi('setCover',
 export async function deleteProduct(productId){return adminApi('deleteProduct',{productId});}
 export async function saveSettings(settings){return adminApi('saveSettings',{settings:{whatsapp:settings.whatsapp,instagram:settings.instagram}});}
 
+
+export async function removeProductImage(productId,url){return adminApi('removeProductImage',{productId,url});}
+
+function fileToAnalysisDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    const objectUrl=URL.createObjectURL(file);
+    img.onload=()=>{
+      try{
+        const max=1100;
+        const scale=Math.min(1,max/Math.max(img.width,img.height));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(img.width*scale));
+        canvas.height=Math.max(1,Math.round(img.height*scale));
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        URL.revokeObjectURL(objectUrl);
+        resolve(canvas.toDataURL('image/jpeg',0.8));
+      }catch(e){URL.revokeObjectURL(objectUrl);reject(e)}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error('Não foi possível preparar a imagem.'))};
+    img.src=objectUrl;
+  });
+}
+
+const cleanOllamaUrl=(url='http://localhost:11434')=>String(url||'http://localhost:11434').trim().replace(/\/$/,'');
+
+export async function checkOllama({url='http://localhost:11434'}={}){
+  const base=cleanOllamaUrl(url);
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),2500);
+  try{
+    const res=await fetch(`${base}/api/tags`,{signal:controller.signal});
+    if(!res.ok) throw new Error(`Ollama respondeu ${res.status}`);
+    const data=await res.json();
+    return {online:true,models:(data.models||[]).map(m=>m.name).filter(Boolean)};
+  }catch(err){
+    const msg=err?.name==='AbortError'?'O Ollama não respondeu a tempo.':(err?.message||'Ollama indisponível.');
+    return {online:false,models:[],error:msg};
+  }finally{clearTimeout(timer)}
+}
+
+function parseJsonLoose(text){
+  const cleaned=String(text||'').trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```$/,'').trim();
+  try{return JSON.parse(cleaned)}catch{}
+  const a=cleaned.indexOf('{'), b=cleaned.lastIndexOf('}');
+  if(a>=0&&b>a){try{return JSON.parse(cleaned.slice(a,b+1))}catch{}}
+  throw new Error('A IA local respondeu em um formato inesperado.');
+}
+
+export async function classifyProductImage(file,{url='http://localhost:11434',model='gemma3:4b'}={}){
+  if(!file) throw new Error('Selecione uma imagem.');
+  const imageDataUrl=await fileToAnalysisDataUrl(file);
+  const base64=imageDataUrl.split(',')[1]||'';
+  const base=cleanOllamaUrl(url);
+  const prompt=`Você organiza o catálogo premium de uma loja brasileira de móveis chamada Lux Decor. Analise a foto e retorne SOMENTE JSON válido, sem markdown, neste formato: {"category":"Sofás|Mesas|Cadeiras|Sala de jantar|Área externa|Banquetas|Aparadores|Espelhos|Outros","name":"nome curto do produto","tag":"selo curto","description":"descrição comercial objetiva em português","features":["característica 1","característica 2","característica 3","característica 4"],"confidence":0.0}. Não invente preço, medida, material ou especificação técnica que não esteja visualmente clara. Se houver um ambiente com vários móveis, classifique o item predominante.`;
+  let res;
+  try{
+    res=await fetch(`${base}/api/chat`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model,
+        stream:false,
+        format:'json',
+        messages:[{role:'user',content:prompt,images:[base64]}],
+        options:{temperature:0.15}
+      })
+    });
+  }catch(err){
+    throw new Error('Não foi possível acessar o Ollama local. Deixe o Ollama aberto e libere a origem do site em OLLAMA_ORIGINS.');
+  }
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data?.error||`Ollama respondeu ${res.status}.`);
+  const text=data?.message?.content||data?.response||'';
+  return {suggestion:parseJsonLoose(text)};
+}
+
 export async function replaceSiteImage(key,file){
   const up=await uploadWithSignedUrl(file,'luxdecor-site-assets',key);
   await adminApi('replaceSiteImage',{key,url:up.url,path:up.path});

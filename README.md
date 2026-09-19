@@ -68,3 +68,62 @@ Esta versão usa **somente nomes exclusivos da Lux Decor** no Supabase:
 - bucket `luxdecor-site-assets`
 
 Ela não lê nem grava nas tabelas genéricas `products`, `categories`, `product_images`, `site_settings` ou `site_images`.
+
+## Painel Admin V2
+Esta versão inclui um fluxo mais simples para cadastro e manutenção do catálogo:
+- lista visual com busca, filtros e status;
+- criação/edição em painel lateral com etapas Informações, Fotos e Detalhes;
+- upload direto por clique ou arrastar e soltar;
+- múltiplas imagens, escolha de capa e remoção individual;
+- exclusão de produto com confirmação;
+- sugestão visual opcional de categoria/nome/descrição a partir da primeira foto.
+
+## IA LOCAL grátis com Ollama
+
+A identificação automática das fotos agora é **100% local e opcional**. O site no Vercel e o catálogo no Supabase continuam funcionando mesmo quando o Ollama estiver desligado.
+
+### 1. Instale e abra o Ollama no PC
+
+O painel tenta acessar por padrão:
+
+```text
+http://localhost:11434
+```
+
+### 2. Instale um modelo multimodal
+
+Recomendado para começar:
+
+```bash
+ollama pull gemma3:4b
+```
+
+Também podem ser usados outros modelos com visão, como variantes de Qwen VL, LLaVA ou MiniCPM-V, desde que estejam instalados no Ollama.
+
+### 3. Liberar o domínio do Vercel no Ollama
+
+Como o Admin está hospedado no Vercel e o Ollama está no seu computador, o navegador precisa ter permissão para chamar o serviço local.
+
+No Windows, feche o Ollama e configure a origem do seu site. Exemplo no PowerShell:
+
+```powershell
+setx OLLAMA_ORIGINS "https://SEU-DOMINIO.vercel.app,http://localhost:5173"
+```
+
+Depois **feche e abra o Ollama novamente**. Se você usa domínio próprio, coloque também esse domínio na lista.
+
+> Não exponha a porta 11434 diretamente na internet. O painel foi feito para conversar com o Ollama no próprio PC.
+
+### 4. Testar no Admin
+
+Entre no Admin → **Configurações → IA local · Ollama** e clique em **Testar conexão**.
+
+Você verá:
+
+- `IA LOCAL: OK` quando o Ollama estiver acessível;
+- `IA LOCAL: OFF` quando estiver desligado ou bloqueado.
+
+Ao cadastrar um produto, envie a foto e use **Analisar primeira foto**. A IA pode sugerir categoria, nome, selo, descrição e características visuais. Ela não deve inventar preço, medida ou especificações técnicas.
+
+Nenhuma `OPENAI_API_KEY` é necessária nesta versão.
+
