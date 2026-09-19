@@ -1,12 +1,8 @@
--- LUX DECOR - banco exclusivo
--- Execute no SQL Editor do Supabase novo.
+-- LUX DECOR — Supabase exclusivo para catálogo + Vercel Admin
+-- Rode este arquivo inteiro no SQL Editor do Supabase.
+-- O painel NÃO usa Supabase Auth. Escritas são feitas somente pela API segura do Vercel com service_role.
 
 create extension if not exists pgcrypto;
-
-create table if not exists public.admin_users (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  created_at timestamptz not null default now()
-);
 
 create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),
@@ -71,7 +67,6 @@ insert into public.categories(name,slug,sort_order) values
 ('Área externa','area-externa',50)
 on conflict (name) do nothing;
 
--- catálogo inicial usa as imagens que já viajam com o projeto Vercel.
 insert into public.products(id,category_id,category_name,name,price,price_label,description,features,badge,cover_url,sort_order) values
 ('11111111-1111-4111-8111-111111111111',(select id from public.categories where name='Sala de jantar'),'Sala de jantar','Mesa Off Laqueada',null,'Sob consulta','Tampo e vidro laqueados, madeira chanfrada e base em madeira maciça. Um encontro entre natural e off.','["Tampo laqueado","Vidro laqueado","Base em madeira maciça","Acabamento natural + off"]','Destaque','/assets/products/mesa-off.png',10),
 ('22222222-2222-4222-8222-222222222222',(select id from public.categories where name='Cadeiras'),'Cadeiras','Cadeira Natural',590,'R$ 590,00','Cadeira em madeira maciça natural, com desenho atemporal e estrutura que suporta até 120 kg.','["Madeira maciça","Suporta até 120 kg","Design atemporal","Uso residencial ou comercial"]','Novo','/assets/products/cadeira-madeira.png',20),
@@ -87,24 +82,19 @@ insert into public.product_images(product_id,url,sort_order,is_cover)
 select p.id,p.cover_url,0,true from public.products p
 where p.cover_url is not null and not exists(select 1 from public.product_images pi where pi.product_id=p.id and pi.url=p.cover_url);
 
-alter table public.admin_users enable row level security;
 alter table public.categories enable row level security;
 alter table public.products enable row level security;
 alter table public.product_images enable row level security;
 alter table public.site_settings enable row level security;
 alter table public.site_images enable row level security;
 
-create or replace function public.is_lux_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists(select 1 from public.admin_users where user_id = auth.uid());
-$$;
+-- recria as políticas públicas de leitura sem depender de Auth
+ drop policy if exists "categories_public_read" on public.categories;
+ drop policy if exists "products_public_read" on public.products;
+ drop policy if exists "product_images_public_read" on public.product_images;
+ drop policy if exists "site_settings_public_read" on public.site_settings;
+ drop policy if exists "site_images_public_read" on public.site_images;
 
--- público: somente leitura
 create policy "categories_public_read" on public.categories for select using (is_active = true);
 create policy "products_public_read" on public.products for select using (is_active = true);
 create policy "product_images_public_read" on public.product_images for select using (
@@ -113,25 +103,15 @@ create policy "product_images_public_read" on public.product_images for select u
 create policy "site_settings_public_read" on public.site_settings for select using (true);
 create policy "site_images_public_read" on public.site_images for select using (true);
 
--- admin: CRUD completo
-create policy "admin_users_self_read" on public.admin_users for select using (user_id = auth.uid());
-create policy "categories_admin_all" on public.categories for all using (public.is_lux_admin()) with check (public.is_lux_admin());
-create policy "products_admin_all" on public.products for all using (public.is_lux_admin()) with check (public.is_lux_admin());
-create policy "product_images_admin_all" on public.product_images for all using (public.is_lux_admin()) with check (public.is_lux_admin());
-create policy "site_settings_admin_all" on public.site_settings for all using (public.is_lux_admin()) with check (public.is_lux_admin());
-create policy "site_images_admin_all" on public.site_images for all using (public.is_lux_admin()) with check (public.is_lux_admin());
-
--- buckets públicos para catálogo; escrita é protegida por RLS de storage.objects
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values
 ('products','products',true,10485760,array['image/jpeg','image/png','image/webp']),
 ('site-assets','site-assets',true,12582912,array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update set public=excluded.public,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
 
+-- leitura pública das imagens; upload/edição é feito pela service_role no backend Vercel
+ drop policy if exists "lux_public_storage_read" on storage.objects;
 create policy "lux_public_storage_read" on storage.objects for select using (bucket_id in ('products','site-assets'));
-create policy "lux_admin_storage_insert" on storage.objects for insert to authenticated with check (bucket_id in ('products','site-assets') and public.is_lux_admin());
-create policy "lux_admin_storage_update" on storage.objects for update to authenticated using (bucket_id in ('products','site-assets') and public.is_lux_admin()) with check (bucket_id in ('products','site-assets') and public.is_lux_admin());
-create policy "lux_admin_storage_delete" on storage.objects for delete to authenticated using (bucket_id in ('products','site-assets') and public.is_lux_admin());
 
 create index if not exists idx_products_category on public.products(category_id);
 create index if not exists idx_products_active_sort on public.products(is_active,sort_order);

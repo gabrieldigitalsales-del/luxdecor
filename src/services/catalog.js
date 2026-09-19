@@ -33,13 +33,6 @@ export async function fetchCatalog() {
   return (data || []).map(toProduct);
 }
 
-export async function fetchCategories() {
-  if (!supabaseConfigured) return null;
-  const { data, error } = await supabase.from('categories').select('*').eq('is_active', true).order('sort_order');
-  if (error) throw error;
-  return data || [];
-}
-
 export async function fetchSiteSettings() {
   if (!supabaseConfigured) return null;
   const [{data:settings,error:sErr},{data:images,error:iErr}] = await Promise.all([
@@ -55,118 +48,53 @@ export async function fetchSiteSettings() {
   };
 }
 
-export async function getSession() {
-  if (!supabaseConfigured) return null;
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  return data.session;
-}
-
-export async function signIn(email,password) {
-  if (!supabaseConfigured) throw new Error('Supabase não configurado.');
-  const { data, error } = await supabase.auth.signInWithPassword({email,password});
-  if (error) throw error;
+async function adminApi(action,payload={}){
+  const res=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({action,...payload})});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error||'Falha no painel administrativo.');
   return data;
 }
 
-export async function signOut() {
-  if (!supabaseConfigured) return;
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+export async function getAdminSession(){
+  try{const r=await adminApi('session');return Boolean(r.authenticated)}catch{return false}
 }
+export async function adminLogin(password){return adminApi('login',{password});}
+export async function adminLogout(){return adminApi('logout');}
+export async function adminFetchProducts(){const r=await adminApi('products');return r.products||[];}
 
-export function onAuthChange(cb){
-  if (!supabaseConfigured) return { unsubscribe(){} };
-  const { data } = supabase.auth.onAuthStateChange((_event,session)=>cb(session));
-  return data.subscription;
-}
-
-async function ensureAdmin(){
-  const { data:auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Faça login no Admin.');
-  const { data, error } = await supabase.from('admin_users').select('user_id').eq('user_id',auth.user.id).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error('Este usuário não possui permissão de administrador.');
-  return auth.user;
-}
-
-export async function adminFetchProducts(){
-  await ensureAdmin();
-  const {data,error}=await supabase.from('products').select('*, category:categories(id,name), product_images(id,url,storage_path,sort_order,is_cover)').order('sort_order').order('created_at',{ascending:false});
+async function uploadWithSignedUrl(file,bucket,folder){
+  if(!supabaseConfigured) throw new Error('Supabase público não configurado no Vercel.');
+  const signed=await adminApi('uploadUrl',{bucket,folder,fileName:file.name,contentType:file.type});
+  const {error}=await supabase.storage.from(bucket).uploadToSignedUrl(signed.path,signed.token,file,{contentType:file.type||undefined,cacheControl:'3600'});
   if(error) throw error;
-  return (data||[]).map(toProduct);
-}
-
-export async function uploadImage(file,bucket='products',folder='catalog'){
-  await ensureAdmin();
-  const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
-  const safe=crypto.randomUUID();
-  const path=`${folder}/${new Date().toISOString().slice(0,10)}/${safe}.${ext}`;
-  const {error}=await supabase.storage.from(bucket).upload(path,file,{cacheControl:'3600',upsert:false});
-  if(error) throw error;
-  const {data}=supabase.storage.from(bucket).getPublicUrl(path);
-  return {url:data.publicUrl,path};
+  const {data}=supabase.storage.from(bucket).getPublicUrl(signed.path);
+  return {url:data.publicUrl,path:signed.path};
 }
 
 export async function saveProduct(product,newFiles=[]){
-  await ensureAdmin();
-  const payload={
-    name:product.name.trim(),
-    category_id:product.categoryId || null,
-    category_name:product.category || null,
-    price:product.price === '' || product.price == null ? null : Number(product.price),
-    price_label:product.priceLabel || 'Sob consulta',
-    description:product.desc || '',
-    features:product.features || [],
-    badge:product.tag || null,
-    is_active:product.isActive !== false,
-    sort_order:Number(product.sortOrder||0),
-    updated_at:new Date().toISOString(),
-  };
-  let id=product.id;
-  if(id){
-    const {error}=await supabase.from('products').update(payload).eq('id',id); if(error) throw error;
-  }else{
-    const {data,error}=await supabase.from('products').insert(payload).select('id').single(); if(error) throw error; id=data.id;
+  const {id}=await adminApi('saveProduct',{product:{...product,image:undefined,images:undefined}});
+  const pendingBlobs=(product.images||[]).filter(x=>String(x).startsWith('blob:'));
+  const chosenPendingIndex=String(product.image||'').startsWith('blob:')?pendingBlobs.indexOf(product.image):-1;
+  const uploaded=[];
+  for(let i=0;i<newFiles.length;i++){
+    const up=await uploadWithSignedUrl(newFiles[i],'products',String(id));
+    uploaded.push(up);
+    await adminApi('addProductImage',{productId:id,url:up.url,path:up.path,sortOrder:100+i,isCover:false});
   }
-  for(const file of newFiles){
-    const up=await uploadImage(file,'products',String(id));
-    const {error}=await supabase.from('product_images').insert({product_id:id,url:up.url,storage_path:up.path,sort_order:100});
-    if(error) throw error;
-  }
-  if(product.image && /^https?:/.test(product.image)){
-    await supabase.from('products').update({cover_url:product.image}).eq('id',id);
-  }
+  let cover=null;
+  if(chosenPendingIndex>=0 && uploaded[chosenPendingIndex]) cover=uploaded[chosenPendingIndex].url;
+  else if(product.image && /^https?:/.test(product.image)) cover=product.image;
+  else if(uploaded[0]) cover=uploaded[0].url;
+  if(cover) await adminApi('setCover',{productId:id,url:cover});
   return id;
 }
 
-export async function setProductCover(productId,url){
-  await ensureAdmin();
-  const {error}=await supabase.from('products').update({cover_url:url,updated_at:new Date().toISOString()}).eq('id',productId);
-  if(error) throw error;
-}
-
-export async function deleteProduct(productId){
-  await ensureAdmin();
-  const {data:imgs}=await supabase.from('product_images').select('storage_path').eq('product_id',productId);
-  const paths=(imgs||[]).map(x=>x.storage_path).filter(Boolean);
-  if(paths.length) await supabase.storage.from('products').remove(paths);
-  const {error}=await supabase.from('products').delete().eq('id',productId);
-  if(error) throw error;
-}
-
-export async function saveSettings(settings){
-  await ensureAdmin();
-  const {error}=await supabase.from('site_settings').upsert({id:1,whatsapp:settings.whatsapp,instagram:settings.instagram,updated_at:new Date().toISOString()});
-  if(error) throw error;
-}
+export async function setProductCover(productId,url){return adminApi('setCover',{productId,url});}
+export async function deleteProduct(productId){return adminApi('deleteProduct',{productId});}
+export async function saveSettings(settings){return adminApi('saveSettings',{settings:{whatsapp:settings.whatsapp,instagram:settings.instagram}});}
 
 export async function replaceSiteImage(key,file){
-  await ensureAdmin();
-  const up=await uploadImage(file,'site-assets',key);
-  const {data:old}=await supabase.from('site_images').select('storage_path').eq('key',key).maybeSingle();
-  const {error}=await supabase.from('site_images').upsert({key,url:up.url,storage_path:up.path,updated_at:new Date().toISOString()});
-  if(error) throw error;
-  if(old?.storage_path) await supabase.storage.from('site-assets').remove([old.storage_path]);
+  const up=await uploadWithSignedUrl(file,'site-assets',key);
+  await adminApi('replaceSiteImage',{key,url:up.url,path:up.path});
   return up.url;
 }

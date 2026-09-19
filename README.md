@@ -1,49 +1,55 @@
-# Lux Decor — React/Vite + Supabase
+# Lux Decor — React/Vite + Supabase + Vercel
 
-## CORREÇÃO DA TELA BRANCA
-Esta versão corrige um erro da versão anterior: o `main.jsx` usava as funções do Supabase sem importar o módulo correspondente. Isso gerava um `ReferenceError` logo na inicialização e deixava a tela branca.
+Versão final com catálogo público e painel administrativo por **senha apenas**.
 
-Também foi adicionado um Error Boundary visível, para que um erro de renderização não resulte mais em uma página totalmente branca.
+## 1. Supabase
+No SQL Editor rode inteiro:
 
-## Rodar localmente
-Este é um projeto React/Vite. **Não abra o `index.html` com dois cliques.**
+`supabase/migrations/001_lux_decor.sql`
 
-No PowerShell, dentro da pasta do projeto:
+Não precisa criar usuário no Supabase Auth.
 
-```powershell
+## 2. Variáveis no Vercel
+Project > Settings > Environment Variables:
+
+```env
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
+ADMIN_PASSWORD=luxdecor1001
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+ADMIN_SESSION_SECRET=uma-chave-grande-e-aleatoria
+```
+
+`ADMIN_SESSION_SECRET` é recomendada, mas opcional.
+
+### Onde pegar as chaves
+- URL + Publishable Key: Supabase > Project Settings > API
+- Service Role: Supabase > Project Settings > API > Secret / service_role
+
+**Nunca** coloque `SUPABASE_SERVICE_ROLE_KEY` com prefixo `VITE_`.
+
+## 3. Deploy
+Depois de criar/alterar as variáveis no Vercel, faça **Redeploy**.
+
+## 4. Admin
+Abra o site e clique em `Admin` ou use `/#admin`.
+
+Senha:
+
+`luxdecor1001`
+
+O painel permite:
+- produtos e valores
+- várias imagens por produto
+- capa do produto
+- imagens fixas do hero e ambientes
+- WhatsApp e Instagram
+- publicação/ocultação de produto
+
+## 5. Local
+```bash
 npm install
 npm run dev
 ```
 
-Depois abra o endereço exibido pelo Vite, normalmente:
-
-`http://localhost:5173`
-
-## Supabase
-Sem `.env`, o site abre em modo local/fallback e o catálogo continua visível.
-
-Copie `.env.example` para `.env.local` e preencha:
-
-```env
-VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-```
-
-Você também pode usar `VITE_SUPABASE_ANON_KEY` por compatibilidade.
-
-## Banco
-Execute no Supabase SQL Editor:
-
-`supabase/migrations/001_lux_decor.sql`
-
-Depois crie o usuário em Authentication e associe-o ao Admin usando:
-
-`supabase/BOOTSTRAP_ADMIN.sql`
-
-## Vercel
-- Framework: Vite
-- Build command: `npm run build`
-- Output: `dist`
-- Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` em Project Settings > Environment Variables.
-
-O arquivo `vercel.json` já está incluído.
+As rotas `/api/admin` são funções serverless do Vercel. Para testar o painel completo localmente, use `vercel dev` ou publique no Vercel.
