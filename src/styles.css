@@ -47,3 +47,7 @@
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+.wa-product.disabled{opacity:.55;pointer-events:none}
+.footer-legal{display:flex;gap:14px;margin-top:14px;font-size:11px}
+.footer-legal a{color:inherit}
