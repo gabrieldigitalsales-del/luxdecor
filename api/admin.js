@@ -3,9 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const COOKIE_NAME = 'lux_admin_session';
 const SESSION_SECONDS = 60 * 60 * 8;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+const loginAttempts = new Map();
 
 function env(name, fallback='') { return process.env[name] || fallback; }
-function secret(){ return env('ADMIN_SESSION_SECRET', env('ADMIN_PASSWORD')); }
+function secret(){ return env('ADMIN_SESSION_SECRET'); }
 function service(){
   const url = env('SUPABASE_URL', env('VITE_SUPABASE_URL'));
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
@@ -28,6 +31,23 @@ function validToken(token){
 function cookies(req){
   return Object.fromEntries(String(req.headers.cookie||'').split(';').map(x=>x.trim()).filter(Boolean).map(x=>{const i=x.indexOf('=');return [decodeURIComponent(x.slice(0,i)),decodeURIComponent(x.slice(i+1))]}));
 }
+function clientKey(req){
+  const raw=String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'unknown');
+  return raw.split(',')[0].trim()||'unknown';
+}
+function canAttemptLogin(req){
+  const key=clientKey(req), now=Date.now();
+  const state=loginAttempts.get(key);
+  if(!state || now-state.start>LOGIN_WINDOW_MS){loginAttempts.set(key,{start:now,count:0});return true}
+  return state.count<LOGIN_MAX_ATTEMPTS;
+}
+function recordFailedLogin(req){
+  const key=clientKey(req), now=Date.now();
+  const state=loginAttempts.get(key);
+  if(!state || now-state.start>LOGIN_WINDOW_MS) loginAttempts.set(key,{start:now,count:1});
+  else loginAttempts.set(key,{...state,count:state.count+1});
+}
+function clearLoginAttempts(req){loginAttempts.delete(clientKey(req));}
 function authenticated(req){ return validToken(cookies(req)[COOKIE_NAME]); }
 function setCookie(res, value, maxAge=SESSION_SECONDS){
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`);
@@ -50,8 +70,10 @@ export default async function handler(req,res){
     const action = body.action || req.query?.action || '';
     if(action==='login'){
       const expected=env('ADMIN_PASSWORD');
-      if(!expected) return json(res,500,{error:'ADMIN_PASSWORD não configurada no Vercel.'});
-      if(!timingEqual(body.password||'',expected)) return json(res,401,{error:'Senha incorreta.'});
+      if(!expected || !secret()) return json(res,500,{error:'Configure ADMIN_PASSWORD e ADMIN_SESSION_SECRET no Vercel.'});
+      if(!canAttemptLogin(req)) return json(res,429,{error:'Muitas tentativas de acesso. Tente novamente mais tarde.'});
+      if(!timingEqual(body.password||'',expected)){recordFailedLogin(req);return json(res,401,{error:'Senha incorreta.'});}
+      clearLoginAttempts(req);
       const token=makeToken(); setCookie(res,token); return json(res,200,{ok:true});
     }
     if(action==='logout'){
@@ -103,5 +125,5 @@ export default async function handler(req,res){
       const {data:old}=await sb.from('luxdecor_site_images').select('storage_path').eq('key',body.key).maybeSingle(); const {error}=await sb.from('luxdecor_site_images').upsert({key:body.key,url:body.url,storage_path:body.path,updated_at:new Date().toISOString()}); if(error)throw error; if(old?.storage_path&&old.storage_path!==body.path)await sb.storage.from('luxdecor-site-assets').remove([old.storage_path]); return json(res,200,{ok:true});
     }
     return json(res,400,{error:'Ação administrativa inválida.'});
-  }catch(error){ console.error('Lux Decor admin API:',error); return json(res,500,{error:error?.message||'Erro interno no painel.'}); }
+  }catch(error){ console.error('Lux Decor admin API:',error); return json(res,500,{error:'Erro interno no painel administrativo.'}); }
 }
