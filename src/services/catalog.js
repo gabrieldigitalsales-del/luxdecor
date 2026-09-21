@@ -62,10 +62,30 @@ export async function adminLogin(password){return adminApi('login',{password});}
 export async function adminLogout(){return adminApi('logout');}
 export async function adminFetchProducts(){const r=await adminApi('products');return r.products||[];}
 
+async function compressImage(file){
+  if(!file || !String(file.type||'').startsWith('image/')) return file;
+  if(file.type==='image/webp' && file.size<=1400000) return file;
+  try{
+    const bitmap=await createImageBitmap(file);
+    const max=1800;
+    const scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+    canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+    canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+    bitmap.close?.();
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',0.84));
+    if(!blob || blob.size>=file.size) return file;
+    const safeName=String(file.name||'imagem').replace(/\.[^.]+$/,'')+'.webp';
+    return new File([blob],safeName,{type:'image/webp',lastModified:Date.now()});
+  }catch{return file}
+}
+
 async function uploadWithSignedUrl(file,bucket,folder){
   if(!supabaseConfigured) throw new Error('Supabase público não configurado no Vercel.');
-  const signed=await adminApi('uploadUrl',{bucket,folder,fileName:file.name,contentType:file.type});
-  const {error}=await supabase.storage.from(bucket).uploadToSignedUrl(signed.path,signed.token,file,{contentType:file.type||undefined,cacheControl:'3600'});
+  const optimized=await compressImage(file);
+  const signed=await adminApi('uploadUrl',{bucket,folder,fileName:optimized.name,contentType:optimized.type});
+  const {error}=await supabase.storage.from(bucket).uploadToSignedUrl(signed.path,signed.token,optimized,{contentType:optimized.type||undefined,cacheControl:'31536000'});
   if(error) throw error;
   const {data}=supabase.storage.from(bucket).getPublicUrl(signed.path);
   return {url:data.publicUrl,path:signed.path};
