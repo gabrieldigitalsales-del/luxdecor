@@ -15,12 +15,12 @@ Project > Settings > Environment Variables:
 ```env
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
-ADMIN_PASSWORD=luxdecor1001
+ADMIN_PASSWORD=defina-uma-senha-forte-no-vercel
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-ADMIN_SESSION_SECRET=uma-chave-grande-e-aleatoria
+ADMIN_SESSION_SECRET=uma-chave-longa-aleatoria-e-diferente-da-senha
 ```
 
-`ADMIN_SESSION_SECRET` é recomendada, mas opcional.
+`ADMIN_SESSION_SECRET` é **obrigatória** e deve ser diferente de `ADMIN_PASSWORD`.
 
 ### Onde pegar as chaves
 - URL + Publishable Key: Supabase > Project Settings > API
@@ -34,9 +34,7 @@ Depois de criar/alterar as variáveis no Vercel, faça **Redeploy**.
 ## 4. Admin
 Abra o site e clique em `Admin` ou use `/#admin`.
 
-Senha:
-
-`luxdecor1001`
+A senha administrativa é definida **somente nas variáveis de ambiente da Vercel** e nunca deve ser documentada ou commitada no repositório.
 
 O painel permite:
 - produtos e valores
@@ -127,3 +125,11 @@ Ao cadastrar um produto, envie a foto e use **Analisar primeira foto**. A IA pod
 
 Nenhuma `OPENAI_API_KEY` é necessária nesta versão.
 
+
+
+## Segurança do painel
+
+- Nunca coloque `ADMIN_PASSWORD` ou `SUPABASE_SERVICE_ROLE_KEY` em variáveis com prefixo `VITE_`.
+- `ADMIN_SESSION_SECRET` é obrigatória e deve ser independente da senha.
+- O endpoint administrativo possui limitação básica de tentativas por origem. Em infraestrutura serverless essa proteção é complementar; para proteção distribuída mais forte, use um rate limiter persistente.
+- Se uma senha administrativa já tiver sido publicada em histórico Git, troque-a na Vercel. Apagar a linha do README não invalida o histórico anterior.
