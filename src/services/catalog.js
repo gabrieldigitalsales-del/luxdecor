@@ -202,8 +202,8 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
   if(!zipFile) throw new Error('Selecione o ZIP do catálogo.');
   const {default:JSZip}=await import('jszip');
   const zip=await JSZip.loadAsync(zipFile);
-  const entries=Object.values(zip.files).filter(f=>!f.dir&&/\\.(jpe?g|png|webp)$/i.test(f.name));
-  const ordered=entries.map(f=>({file:f,number:Number(f.name.split('/').pop().match(/^(\\d{2})-/)?.[1])})).sort((a,b)=>a.number-b.number);
+  const entries=Object.values(zip.files).filter(f=>!f.dir&&/\.(jpe?g|png|webp)$/i.test(f.name));
+  const ordered=entries.map(f=>({file:f,number:Number(f.name.split('/').pop().match(/^(\d{2})-/)?.[1])})).sort((a,b)=>a.number-b.number);
   if(ordered.length!==27 || ordered.some((x,i)=>x.number!==i+1)) throw new Error('O ZIP precisa conter as 27 fotos numeradas de 01 a 27.');
   const items=await adminFetchProducts();
   const products=[...items].sort((a,b)=>(a.sortOrder??a.sort_order??999)-(b.sortOrder??b.sort_order??999));
@@ -214,7 +214,7 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
     const entry=ordered[i].file;
     const binary=await entry.async('blob');
     const name=entry.name.split('/').pop();
-    const f=new File([binary],name,{type:/\\.png$/i.test(name)?'image/png':/\\.webp$/i.test(name)?'image/webp':'image/jpeg'});
+    const f=new File([binary],name,{type:/\.png$/i.test(name)?'image/png':/\.webp$/i.test(name)?'image/webp':'image/jpeg'});
     onProgress({complete,total:27,name:product.name});
     const up=await uploadWithSignedUrl(f,'luxdecor-products',String(product.id));
     await adminApi('addProductImage',{productId:product.id,url:up.url,path:up.path,sortOrder:0,isCover:true});
