@@ -196,3 +196,31 @@ export async function replaceSiteImage(key,file){
   await adminApi('replaceSiteImage',{key,url:up.url,path:up.path});
   return up.url;
 }
+
+// Importa o pacote preparado com nomes numerados, usando o acesso já autorizado do painel.
+export async function importCatalogZip(zipFile,onProgress=()=>{}){
+  if(!zipFile) throw new Error('Selecione o ZIP do catálogo.');
+  const {default:JSZip}=await import('jszip');
+  const zip=await JSZip.loadAsync(zipFile);
+  const entries=Object.values(zip.files).filter(f=>!f.dir&&/\\.(jpe?g|png|webp)$/i.test(f.name));
+  const ordered=entries.map(f=>({file:f,number:Number(f.name.split('/').pop().match(/^(\\d{2})-/)?.[1])})).sort((a,b)=>a.number-b.number);
+  if(ordered.length!==27 || ordered.some((x,i)=>x.number!==i+1)) throw new Error('O ZIP precisa conter as 27 fotos numeradas de 01 a 27.');
+  const items=await adminFetchProducts();
+  const products=[...items].sort((a,b)=>(a.sortOrder??a.sort_order??999)-(b.sortOrder??b.sort_order??999));
+  if(products.length!==27 || products.some((p,i)=>Number(p.sortOrder??p.sort_order)!==i+1)) throw new Error('O catálogo não contém os 27 produtos numerados de 1 a 27. Nenhuma imagem foi enviada.');
+  let complete=0;
+  for(let i=0;i<ordered.length;i++){
+    const product=products[i];
+    const entry=ordered[i].file;
+    const binary=await entry.async('blob');
+    const name=entry.name.split('/').pop();
+    const f=new File([binary],name,{type:/\\.png$/i.test(name)?'image/png':/\\.webp$/i.test(name)?'image/webp':'image/jpeg'});
+    onProgress({complete,total:27,name:product.name});
+    const up=await uploadWithSignedUrl(f,'luxdecor-products',String(product.id));
+    await adminApi('addProductImage',{productId:product.id,url:up.url,path:up.path,sortOrder:0,isCover:true});
+    await adminApi('setCover',{productId:product.id,url:up.url});
+    complete++;
+    onProgress({complete,total:27,name:product.name});
+  }
+  return complete;
+}
