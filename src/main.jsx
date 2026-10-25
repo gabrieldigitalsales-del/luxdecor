@@ -16,6 +16,7 @@ import {
   replaceSiteImage,
   removeProductImage,
   classifyProductImage,
+  importCatalogZip,
   checkOllama,
 } from './services/catalog';
 
@@ -125,7 +126,7 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
  const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState('');
  const [search,setSearch]=useState(''); const [catFilter,setCatFilter]=useState('Todos'); const [editorTab,setEditorTab]=useState('basic'); const [aiSuggestion,setAiSuggestion]=useState(null); const [analyzing,setAnalyzing]=useState(false);
  const [ollama,setOllama]=useState(()=>{try{return {...{url:'http://localhost:11434',model:'gemma3:4b'},...JSON.parse(localStorage.getItem('lux_ollama')||'{}')}}catch{return {url:'http://localhost:11434',model:'gemma3:4b'}}}); const [ollamaState,setOllamaState]=useState({checking:false,online:false,models:[],error:''});
- const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef();
+ const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef(); const bulkZipRef=useRef(); const [bulkProgress,setBulkProgress]=useState(null);
  const fixedImages=[['hero0','Hero 01'],['hero1','Hero 02'],['hero2','Hero 03'],['hero3','Hero 04'],['editorial','Imagem editorial central'],['roomDining','Ambiente · Sala de jantar'],['roomLiving','Ambiente · Sala de estar'],['roomOutdoor','Ambiente · Área externa']];
  useEffect(()=>{let alive=true;getAdminSession().then(ok=>alive&&setSession(ok)).finally(()=>alive&&setChecking(false));return()=>{alive=false}},[]);
  useEffect(()=>{localStorage.setItem('lux_ollama',JSON.stringify(ollama))},[ollama]);
@@ -158,7 +159,7 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
    {notice&&<div className="admin-notice">{notice}<button onClick={()=>setNotice('')}>×</button></div>}{busy&&<div className="admin-progress"><i/> {busy}</div>}
    {!supabaseConfigured&&<div className="admin-setup-warning"><b>Variáveis públicas do Supabase ausentes.</b><span>Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no Vercel.</span></div>}
    {view==='products'&&<main className="admin-workspace">
-     <div className="admin-title-row"><div><div className="eyebrow">Catálogo</div><h2>Produtos</h2><p>Adicione fotos, edite informações ou retire um item sem sair desta tela.</p></div><button className="admin-primary" onClick={openNew}>+ Adicionar produto</button></div>
+     <div className="admin-title-row"><div><div className="eyebrow">Catálogo</div><h2>Produtos</h2><p>Adicione fotos, edite informações ou retire um item sem sair desta tela.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><input type="file" accept=".zip,application/zip" ref={bulkZipRef} hidden onChange={bulkZipUpload}/><button className="admin-primary" disabled={!!busy} onClick={()=>bulkZipRef.current?.click()}>Importar ZIP de 27 fotos</button><button className="admin-primary" onClick={openNew}>+ Adicionar produto</button></div></div>{bulkProgress&&<p role="status" style={{padding:"12px 0"}}>Imagens vinculadas: {bulkProgress.complete}/{bulkProgress.total} — {bulkProgress.name}</p>}
      <div className="admin-stats"><div><b>{stats.total}</b><span>Total</span></div><div><b>{stats.published}</b><span>Publicados</span></div><div><b>{stats.hidden}</b><span>Ocultos</span></div><div><b>{stats.consult}</b><span>Sob consulta</span></div></div>
      <div className="admin-toolbar"><label className="admin-search"><span>⌕</span><input placeholder="Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)}/></label><select value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option>Todos</option>{CATEGORIES.map(x=><option key={x}>{x}</option>)}</select></div>
      <div className="admin-product-cards">{filtered.map(p=><article key={p.id} className="admin-product-card"><div className="admin-product-photo"><img src={p.image||A+'logo-mark-navy.png'} alt=""/><span className={p.isActive===false?'status hidden':'status'}>{p.isActive===false?'Oculto':'Publicado'}</span></div><div className="admin-product-meta"><small>{p.category}</small><h3>{p.name}</h3><strong>{p.priceLabel||'Sob consulta'}</strong><div className="admin-card-actions"><button onClick={()=>openEdit(p)}>Editar</button><button className="danger" onClick={()=>removeProduct(p.id,p.name)}>Excluir</button></div></div></article>)}</div>
