@@ -135,6 +135,13 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
  async function login(e){e.preventDefault();setAuthError('');setBusy('Entrando...');try{await adminLogin(password);setSession(true);setPassword('');await refresh()}catch(err){setAuthError(err.message)}finally{setBusy('')}}
  async function logout(){try{await adminLogout()}finally{setSession(false)}}
  async function refresh(){const [ps,ss]=await Promise.all([adminFetchProducts(),fetchSiteSettings()]);if(ps)setProducts(ps);if(ss)setSettings(prev=>({...prev,...ss,siteImages:{...DEFAULT_SITE_IMAGES,...(ss.siteImages||{})}}))}
+ async function bulkZipUpload(e){
+  const file=e.target.files?.[0];e.target.value='';if(!file)return;
+  setBusy('Importando imagens...');setNotice('');setBulkProgress({complete:0,total:27,name:'Iniciando'});
+  try {await importCatalogZip(file,setBulkProgress);await refresh();setNotice('27 imagens importadas com sucesso.');}
+  catch(err){setNotice('Falha na importação: '+(err?.message||'Erro desconhecido'));}
+  finally{setBusy('');}
+ }
  function openNew(){setDraft(blank());setPendingFiles([]);setAiSuggestion(null);setEditorTab('photos')}
  function openEdit(p){setDraft({...p,images:[...(p.images||[])]});setPendingFiles([]);setAiSuggestion(null);setEditorTab('basic')}
  function closeEditor(){pendingFiles.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));setDraft(null);setPendingFiles([]);setAiSuggestion(null)}
