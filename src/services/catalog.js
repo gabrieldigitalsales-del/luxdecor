@@ -202,6 +202,28 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
   if(!zipFile) throw new Error('Selecione o ZIP do catálogo.');
   const {default:JSZip}=await import('jszip');
   const zip=await JSZip.loadAsync(zipFile);
+  const manifestFile=zip.file('catalogo.json');
+  if(manifestFile){
+    const catalog=JSON.parse(await manifestFile.async('string'));
+    if(!Array.isArray(catalog)||catalog.length!==20) throw new Error('O catálogo deve conter 20 produtos.');
+    const existing=await adminFetchProducts();
+    let complete=0;
+    for(const item of catalog){
+      const source=zip.file(item.arquivo);
+      if(!source||!item.nome) throw new Error('Arquivo de produto ausente: '+item.arquivo);
+      let product=existing.find(p=>p.name===item.nome);
+      if(product?.image){complete++;onProgress({complete,total:20,name:item.nome});continue;}
+      const id=product?.id||(await adminApi('saveProduct',{product:{name:item.nome,category:item.categoria||'Outros',price:null,priceLabel:'Consulte valor',isActive:true,sortOrder:100+Number(item.numero),desc:'',features:[]}})).id;
+      const blob=await source.async('blob');
+      const photo=new File([blob],item.arquivo,{type:'image/jpeg'});
+      onProgress({complete,total:20,name:item.nome});
+      const up=await uploadWithSignedUrl(photo,'luxdecor-products',String(id));
+      await adminApi('addProductImage',{productId:id,url:up.url,path:up.path,sortOrder:0,isCover:true});
+      await adminApi('setCover',{productId:id,url:up.url});
+      complete++;onProgress({complete,total:20,name:item.nome});
+    }
+    return complete;
+  }
   const entries=Object.values(zip.files).filter(f=>!f.dir&&/\.(jpe?g|png|webp)$/i.test(f.name));
   const ordered=entries.map(f=>({file:f,number:Number(f.name.split('/').pop().match(/^(\d{2})-/)?.[1])})).sort((a,b)=>a.number-b.number);
   if(ordered.length!==27 || ordered.some((x,i)=>x.number!==i+1)) throw new Error('O ZIP precisa conter as 27 fotos numeradas de 01 a 27.');
