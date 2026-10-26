@@ -212,7 +212,6 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
       const source=zip.file(item.arquivo);
       if(!source||!item.nome) throw new Error('Arquivo de produto ausente: '+item.arquivo);
       let product=existing.find(p=>p.name===item.nome);
-      if(product?.image){complete++;onProgress({complete,total:20,name:item.nome});continue;}
       const id=product?.id||(await adminApi('saveProduct',{product:{name:item.nome,category:item.categoria||'Outros',price:null,priceLabel:'Consulte valor',isActive:true,sortOrder:100+Number(item.numero),desc:'',features:[]}})).id;
       const blob=await source.async('blob');
       const photo=new File([blob],item.arquivo,{type:'image/jpeg'});
@@ -220,6 +219,10 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
       const up=await uploadWithSignedUrl(photo,'luxdecor-products',String(id));
       await adminApi('addProductImage',{productId:id,url:up.url,path:up.path,sortOrder:0,isCover:true});
       await adminApi('setCover',{productId:id,url:up.url});
+      if(product){
+        const previous=[...new Set([...(product.images||[]),product.image].filter(Boolean))];
+        for(const url of previous){if(url!==up.url) await adminApi('removeProductImage',{productId:id,url});}
+      }
       complete++;onProgress({complete,total:20,name:item.nome});
     }
     return complete;
