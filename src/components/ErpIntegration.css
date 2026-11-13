@@ -48,3 +48,14 @@
 .erp-review-dialog-actions button:first-child{border:1px solid #d9e1ea;background:#fff;padding:10px 14px;border-radius:7px;cursor:pointer}
 @media(max-width:800px){.erp-review-card{grid-template-columns:1fr}.erp-review-product{border-right:0;border-bottom:1px solid #e0e7ef}.erp-review-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.erp-review-header{flex-direction:column}.erp-review-refresh{width:100%}.erp-review-controls{grid-template-columns:1fr}.erp-review-add{flex-direction:column}.erp-review-add button{width:100%}.erp-review-link{align-items:flex-start;flex-direction:column}.erp-review-dialog-actions{flex-direction:column-reverse}.erp-review-dialog-actions button{width:100%}}
+
+/* Fila de aprovação e formulário de preparação */
+.erp-review-queue{display:flex;flex-direction:column;gap:7px;max-height:360px;overflow:auto;overscroll-behavior:contain}
+.erp-review-queue-row{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff;border:1px solid #eadcbf;border-radius:7px;padding:12px;min-width:0}
+.erp-review-queue-row>div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.erp-review-queue-row strong{font-size:12px;color:#233c5e;overflow-wrap:anywhere}
+.erp-review-queue-row small{font-size:11px;color:#748297}
+.erp-review-queue-row button{border:1px solid #173b6e;border-radius:6px;background:#173b6e;color:white;padding:9px 12px;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap}
+.erp-review-form-field{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:650;margin:12px 0;color:#354c68}
+.erp-review-form-field input,.erp-review-form-field select,.erp-review-form-field textarea{min-width:0;width:100%;border:1px solid #dbe3ed;border-radius:6px;padding:10px 11px;font:inherit;color:#1c3551;background:#fff}
+@media(max-width:560px){.erp-review-queue-row{align-items:stretch;flex-direction:column}.erp-review-queue-row button{width:100%}}
