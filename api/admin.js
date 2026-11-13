@@ -1,3 +1,4 @@
+import {readErpProducts,erpLabel} from './_erp.js';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -83,6 +84,26 @@ export default async function handler(req,res){
     if(!authenticated(req)) return json(res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
 
     const sb=service();
+    if(action==='erpIntegrationInfo'){
+      const [erp,links]=await Promise.all([readErpProducts(sb),sb.from('luxdecor_erp_product_links').select('site_product_id,erp_product_id')]);
+      if(links.error)throw links.error;
+      return json(res,200,{erp:erp.items.map(p=>({id:String(p.id),name:erpLabel(p),stock:Number(p.stock)||0,unknown:/quantidade n[aã]o informada/i.test(String(p.observacoes||''))})),links:links.data||[],revision:erp.revision});
+    }
+    if(action==='erpLink'){
+      const siteId=String(body.siteProductId||''),erpId=String(body.erpProductId||'');
+      if(!/^[0-9a-f-]{36}$/i.test(siteId)||!erpId||erpId.length>128)return json(res,400,{error:'Produto inválido.'});
+      const erp=await readErpProducts(sb);
+      if(!erp.items.some(p=>String(p.id)===erpId))return json(res,404,{error:'Item não encontrado no ERP.'});
+      const {data:site,error:siteError}=await sb.from('luxdecor_products').select('id').eq('id',siteId).maybeSingle();
+      if(siteError)throw siteError;
+      if(!site)return json(res,404,{error:'Produto não encontrado no site.'});
+      const {error}=await sb.from('luxdecor_erp_product_links').upsert({site_product_id:siteId,erp_product_id:erpId},{onConflict:'site_product_id,erp_product_id'});if(error)throw error;
+      return json(res,200,{ok:true});
+    }
+    if(action==='erpUnlink'){
+      const {error}=await sb.from('luxdecor_erp_product_links').delete().eq('site_product_id',String(body.siteProductId||'')).eq('erp_product_id',String(body.erpProductId||''));
+      if(error)throw error;return json(res,200,{ok:true});
+    }
     if(action==='products'){
       const {data,error}=await sb.from('luxdecor_products').select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,storage_path,sort_order,is_cover)').order('sort_order').order('created_at',{ascending:false});
       if(error) throw error; return json(res,200,{products:(data||[]).map(normalizeProduct)});
