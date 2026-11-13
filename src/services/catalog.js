@@ -30,7 +30,10 @@ export async function fetchCatalog() {
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data || []).map(toProduct);
+  let availability={};
+  try{availability=await fetchErpAvailability()}catch(error){console.warn('Disponibilidade ERP indisponível; catálogo preservado.',error.message)}
+  return (data || []).map(row=>{const product=toProduct(row);return {...product,erpAvailability:availability[String(row.id)]||null}});
+
 }
 
 export async function fetchSiteSettings() {
