@@ -100,6 +100,36 @@ export default async function handler(req,res){
       const {error}=await sb.from('luxdecor_erp_product_links').upsert({site_product_id:siteId,erp_product_id:erpId},{onConflict:'site_product_id,erp_product_id'});if(error)throw error;
       return json(res,200,{ok:true});
     }
+    if(action==='erpCreateDraft'){
+      const erpId=String(body.erpProductId||'');
+      if(!erpId||erpId.length>128)return json(res,400,{error:'Variação ERP inválida.'});
+      const erp=await readErpProducts(sb);
+      const item=erp.items.find(p=>String(p.id)===erpId);
+      if(!item||item.active===false||item.archivedAt||item.publishOnSite!==true)return json(res,400,{error:'Somente produtos ativos e liberados no ERP podem entrar na fila.'});
+      const {data:existing,error:existingError}=await sb.from('luxdecor_erp_product_links').select('site_product_id').eq('erp_product_id',erpId).limit(1);
+      if(existingError)throw existingError;
+      if(existing?.length)return json(res,409,{error:'Esta variação já está associada a um produto do site. Atualize a lista.'});
+      const name=String(body.name||item.nome_produto||item.name||'').trim().slice(0,160);
+      const category=String(body.category||'Outros').trim().slice(0,80)||'Outros';
+      const description=String(body.description||'').trim().slice(0,3000);
+      if(name.length<2)return json(res,400,{error:'Informe um nome válido para o produto.'});
+      const rawPrice=item.preco_final??item.price;
+      const amount=rawPrice==null||rawPrice===''?NaN:Number(rawPrice);
+      const price=Number.isFinite(amount)&&amount>0?Number(amount.toFixed(2)):null;
+      const {data:created,error:createError}=await sb.from('luxdecor_products').insert({
+        name,category_name:category,description,features:[],price,
+        price_label:price?price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Sob consulta',
+        badge:'Novo',is_active:false,sort_order:0,updated_at:new Date().toISOString()
+      }).select('id').single();
+      if(createError)throw createError;
+      const {error:linkError}=await sb.from('luxdecor_erp_product_links').insert({site_product_id:created.id,erp_product_id:erpId});
+      if(linkError){
+        await sb.from('luxdecor_products').delete().eq('id',created.id);
+        if(linkError.code==='23505')return json(res,409,{error:'Esta variação já está vinculada. Atualize a lista.'});
+        throw linkError;
+      }
+      return json(res,200,{ok:true,id:created.id,draft:true});
+    }
     if(action==='erpUnlink'){
       const {error}=await sb.from('luxdecor_erp_product_links').delete().eq('site_product_id',String(body.siteProductId||'')).eq('erp_product_id',String(body.erpProductId||''));
       if(error)throw error;return json(res,200,{ok:true});
