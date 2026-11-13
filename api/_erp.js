@@ -22,6 +22,25 @@ export function summarizeLinkedProducts(items,links){
   const known=!/quantidade n[aã]o informada/i.test(notes)&&Number.isFinite(Number(p.stock));
   if(known){record.quantity+=Math.max(0,Number(p.stock)||0);record.knownVariants++}
   else record.unknownVariants++;
+  // Nunca publicar preços de itens não autorizados ou sem valor válido.
+  if(p.publishOnSite===true && p.active!==false && !p.archivedAt){
+   record.enabledVariants=(record.enabledVariants||0)+1;
+   const rawPrice=p.preco_final??p.price;
+   const price=rawPrice===null||rawPrice===undefined||rawPrice===''?NaN:Number(rawPrice);
+   if(Number.isFinite(price)&&price>0){
+    (record.enabledPrices||(record.enabledPrices=[])).push(Number(price.toFixed(2)));
+   }
+  }
+ }
+ for(const record of Object.values(grouped)){
+  const prices=record.enabledPrices||[];
+  // Para não informar preços incorretos, todas as variantes autorizadas devem ter preço.
+  if(record.enabledVariants>0 && prices.length===record.enabledVariants){
+   const min=Math.min(...prices),max=Math.max(...prices);
+   record.sitePrice=min;
+   record.sitePriceLabel=(max>min?'A partir de ':'')+min.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  }
+  delete record.enabledPrices;
  }
  return grouped;
 }
