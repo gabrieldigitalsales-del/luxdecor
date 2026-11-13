@@ -143,6 +143,21 @@ export default async function handler(req,res){
       const payload={name:String(p.name||'').trim(),category_id:p.categoryId||null,category_name:p.category||null,price:p.price===''||p.price==null?null:Number(p.price),price_label:p.priceLabel||'Sob consulta',description:p.desc||'',features:Array.isArray(p.features)?p.features:[],badge:p.tag||null,is_active:p.isActive!==false,sort_order:Number(p.sortOrder||0),updated_at:new Date().toISOString()};
       if(!payload.name) return json(res,400,{error:'Informe o nome do produto.'});
       let id=p.id;
+      if(id&&payload.is_active){
+        const {data:current,error:currentError}=await sb.from('luxdecor_products').select('id,is_active,cover_url,description').eq('id',id).maybeSingle();
+        if(currentError)throw currentError;
+        if(!current)return json(res,404,{error:'Produto não encontrado.'});
+        if(current.is_active===false){
+          const {data:linked,error:linkError}=await sb.from('luxdecor_erp_product_links').select('erp_product_id').eq('site_product_id',id).limit(1);
+          if(linkError)throw linkError;
+          if(linked?.length){
+            const {data:images,error:imageError}=await sb.from('luxdecor_product_images').select('id').eq('product_id',id).limit(1);
+            if(imageError)throw imageError;
+            if(!(current.cover_url||images?.length))return json(res,400,{error:'Adicione uma foto ao produto antes de publicá-lo no catálogo.'});
+            if(!payload.description.trim())return json(res,400,{error:'Informe a descrição do produto antes de publicá-lo.'});
+          }
+        }
+      }
       if(id){ const {error}=await sb.from('luxdecor_products').update(payload).eq('id',id); if(error)throw error; }
       else { const {data,error}=await sb.from('luxdecor_products').insert(payload).select('id').single(); if(error)throw error; id=data.id; }
       return json(res,200,{id});
