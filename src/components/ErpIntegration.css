@@ -1,0 +1,50 @@
+.erp-review{display:flex;flex-direction:column;gap:20px;min-width:0;color:#172a45}
+.erp-review *{box-sizing:border-box}
+.erp-review-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.erp-review-header>div{min-width:0;max-width:780px}
+.erp-review-overline{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.13em;color:#627897}
+.erp-review-header h2{font-size:clamp(23px,2.5vw,32px);font-weight:750;letter-spacing:-.04em;margin:8px 0}
+.erp-review-header p,.erp-review-pending p{font-size:13px;line-height:1.6;color:#697990;margin:0}
+.erp-review-refresh,.erp-review-add button,.erp-review-dialog-actions button:last-child{background:#173b6e;border:1px solid #173b6e;color:#fff;font-weight:700;border-radius:7px;padding:11px 15px;cursor:pointer;white-space:nowrap}
+.erp-review button:disabled{opacity:.55;cursor:not-allowed}
+.erp-review-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.erp-review-metrics>div{background:#fff;border:1px solid #e1e7ef;border-radius:9px;padding:17px;display:flex;flex-direction:column;gap:5px}
+.erp-review-metrics strong{font-size:25px;line-height:1.1;color:#173b6e}
+.erp-review-metrics span{font-size:11px;color:#687a93}
+.erp-review-pending{border:1px solid #e7d9b4;border-radius:9px;background:#fffdf8;padding:17px;display:grid;gap:12px}
+.erp-review-pending strong{font-size:14px}
+.erp-review-pending-items{display:flex;flex-wrap:wrap;gap:7px}
+.erp-review-pending-items span,.erp-review-pending-items small{font-size:11px;padding:7px 9px;border-radius:5px;background:#f8edcf;color:#6a5128}
+.erp-review-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr);gap:12px}
+.erp-review-controls label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;color:#526984}
+.erp-review-controls input,.erp-review-controls select,.erp-review-add select{height:43px;min-width:0;width:100%;border:1px solid #d8e1ec;border-radius:7px;background:#fff;color:#263e59;padding:0 12px;font:inherit}
+.erp-review-list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
+.erp-review-card{display:grid;grid-template-columns:minmax(230px,.65fr) minmax(0,1.35fr);background:#fff;border:1px solid #e0e7ef;border-radius:9px;overflow:hidden;min-width:0}
+.erp-review-product{padding:18px;display:flex;align-items:flex-start;gap:13px;background:#f8fafd;border-right:1px solid #e0e7ef;min-width:0}
+.erp-review-product img{height:72px;width:72px;object-fit:cover;border-radius:7px;background:#eee;flex-shrink:0}
+.erp-review-product>div{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+.erp-review-product strong,.erp-review-link strong{font-size:13px;overflow-wrap:anywhere}
+.erp-review-product small,.erp-review-link small{font-size:11px;color:#718197;line-height:1.5;overflow-wrap:anywhere}
+.erp-review-pill{font-size:10px;color:#856a2d;background:#fff2d0;padding:5px 7px;border-radius:4px}
+.erp-review-pill.is-linked{background:#e7f4ec;color:#246647}
+.erp-review-detail{padding:15px;min-width:0}
+.erp-review-linked{display:flex;flex-direction:column;gap:7px}
+.erp-review-link{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e5ebf2;background:#fbfcfe;border-radius:6px}
+.erp-review-link>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.erp-review-link button{border:1px solid #e6c7c7;color:#923e3e;background:#fff;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:11px}
+.erp-review-muted{font-size:12px;color:#8390a0;margin:4px 0 12px}
+.erp-review-add{display:flex;gap:9px;margin-top:12px;min-width:0}
+.erp-review-add select{flex:1}
+.erp-review-add button{flex-shrink:0;font-size:11px}
+.erp-review-state{padding:24px;background:#fff;border:1px solid #e4eaf2;border-radius:9px;text-align:center;color:#718197}
+.erp-review-footnote{font-size:11px;line-height:1.6;color:#78889c;margin:0}
+.erp-review-error,.erp-review-warning{background:#fff4ed;border:1px solid #f1d5c5;border-radius:6px;padding:11px;color:#994924;font-size:12px}
+.erp-review-dialog-backdrop{position:fixed;inset:0;z-index:20000;background:rgba(9,20,40,.55);display:grid;place-items:center;padding:16px}
+.erp-review-dialog{background:white;border-radius:10px;box-shadow:0 24px 70px rgba(0,0,0,.22);width:min(100%,480px);padding:23px}
+.erp-review-dialog h3{margin:0 0 17px;font-size:20px;color:#173b6e}
+.erp-review-dialog p{font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.erp-review-dialog-note{font-size:11px!important;color:#73839a}
+.erp-review-dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+.erp-review-dialog-actions button:first-child{border:1px solid #d9e1ea;background:#fff;padding:10px 14px;border-radius:7px;cursor:pointer}
+@media(max-width:800px){.erp-review-card{grid-template-columns:1fr}.erp-review-product{border-right:0;border-bottom:1px solid #e0e7ef}.erp-review-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.erp-review-header{flex-direction:column}.erp-review-refresh{width:100%}.erp-review-controls{grid-template-columns:1fr}.erp-review-add{flex-direction:column}.erp-review-add button{width:100%}.erp-review-link{align-items:flex-start;flex-direction:column}.erp-review-dialog-actions{flex-direction:column-reverse}.erp-review-dialog-actions button{width:100%}}
