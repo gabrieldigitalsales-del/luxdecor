@@ -11,7 +11,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  const [selection,setSelection]=useState({}),[approval,setApproval]=useState(null);
  const [newDraft,setNewDraft]=useState(null),[draftName,setDraftName]=useState(''),[draftCategory,setDraftCategory]=useState('Sofás'),[draftDescription,setDraftDescription]=useState('');
  const load=async()=>{setError('');setLoading(true);try{setData(await adminErpIntegrationInfo())}catch(e){setError(e.message)}finally{setLoading(false)}};
- useEffect(()=>{load()},[]);
+ useEffect(()=>{load();const timer=setInterval(()=>{if(!document.hidden)adminErpIntegrationInfo().then(setData).catch(()=>{})},60000);return()=>clearInterval(timer)},[]);
  const erpMap=useMemo(()=>new Map((data.erp||[]).map(x=>[String(x.id),x])),[data.erp]);
  const linkedIds=useMemo(()=>new Set((data.links||[]).map(x=>String(x.erp_product_id))),[data.links]);
  const waiting=useMemo(()=>(data.erp||[]).filter(x=>x.publishOnSite&&!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
