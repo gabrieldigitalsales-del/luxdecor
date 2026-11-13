@@ -66,6 +66,7 @@ export async function fetchErpAvailability(){
 export async function adminErpIntegrationInfo(){return adminApi('erpIntegrationInfo');}
 export async function adminLinkErp(siteProductId,erpProductId){return adminApi('erpLink',{siteProductId,erpProductId});}
 export async function adminUnlinkErp(siteProductId,erpProductId){return adminApi('erpUnlink',{siteProductId,erpProductId});}
+export async function adminCreateErpDraft(erpProductId,product){return adminApi('erpCreateDraft',{erpProductId,...product});}
 
 export async function getAdminSession(){
   try{const r=await adminApi('session');return Boolean(r.authenticated)}catch{return false}
