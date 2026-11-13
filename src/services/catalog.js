@@ -55,6 +55,15 @@ async function adminApi(action,payload={}){
   return data;
 }
 
+export async function fetchErpAvailability(){
+ const res=await fetch('/api/erp-stock',{cache:'no-store'});
+ if(!res.ok)throw Error('Estoque do ERP temporariamente indisponível.');
+ const data=await res.json();return data.products||{};
+}
+export async function adminErpIntegrationInfo(){return adminApi('erpIntegrationInfo');}
+export async function adminLinkErp(siteProductId,erpProductId){return adminApi('erpLink',{siteProductId,erpProductId});}
+export async function adminUnlinkErp(siteProductId,erpProductId){return adminApi('erpUnlink',{siteProductId,erpProductId});}
+
 export async function getAdminSession(){
   try{const r=await adminApi('session');return Boolean(r.authenticated)}catch{return false}
 }
