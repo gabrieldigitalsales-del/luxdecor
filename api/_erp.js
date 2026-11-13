@@ -15,7 +15,7 @@ export function summarizeLinkedProducts(items,links){
  const byId=new Map(items.map(p=>[String(p.id),p]));
  const grouped={};
  for(const row of links||[]){
-  const p=byId.get(String(row.erp_product_id));if(!p)continue;
+  const p=byId.get(String(row.erp_product_id));if(!p||p.publishOnSite!==true||p.active===false||p.archivedAt)continue;
   const id=String(row.site_product_id), record=grouped[id]||(grouped[id]={siteProductId:id,linked:true,quantity:0,knownVariants:0,unknownVariants:0,variants:0});
   record.variants++;
   const notes=String(p.observacoes||p.notes||'');
