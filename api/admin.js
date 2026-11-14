@@ -122,22 +122,24 @@ export default async function handler(req,res){
       if(linksResp.error)throw linksResp.error;
       const links=linksResp.data||[];
       const byId=new Map(erp.items.map(p=>[String(p.id),p]));
-      const own=links.filter(link=>String(link.site_product_id)===siteId);
+      // Registros de mesmo modelo no catálogo são apresentações do mesmo produto,
+      // não SKUs concorrentes nem erro de duplicação.
+      const {data:family,error:familyError}=await sb.from('luxdecor_products')
+        .select('id,name').eq('name',site.name);
+      if(familyError)throw familyError;
+      const familyIds=new Set((family||[]).map(p=>String(p.id)));
+      const own=links.filter(link=>familyIds.has(String(link.site_product_id)));
       if(!own.length)return json(res,400,{error:'Associe ao menos uma variação do ERP antes de liberar este produto.'});
-      const variants=own.map(link=>byId.get(String(link.erp_product_id)));
-      if(variants.some(p=>!p||p.active===false||p.archivedAt))return json(res,400,{error:'Existem vínculos inativos ou inexistentes. Revise as variações antes de liberar.'});
-      if(variants.some(p=>!sameErpModel(site.name,p.nome_produto||p.name)))return json(res,400,{error:'Há vínculos de modelos diferentes neste produto. Corrija antes de publicar.'});
-      const ids=own.map(link=>String(link.erp_product_id));
-      const duplicateIds=[...new Set(links.filter(link=>String(link.site_product_id)!==siteId&&ids.includes(String(link.erp_product_id))).map(link=>String(link.site_product_id)))];
-      let duplicates=[];
-      if(duplicateIds.length){
-        const {data:found,error:duplicateError}=await sb.from('luxdecor_products').select('id,name,is_active').in('id',duplicateIds);
-        if(duplicateError)throw duplicateError;
-        duplicates=found||[];
-        if(duplicates.length!==duplicateIds.length||duplicates.some(p=>String(p.name).trim().toLocaleLowerCase('pt-BR')!==String(site.name).trim().toLocaleLowerCase('pt-BR')))
-          return json(res,409,{error:'Algumas variações estão vinculadas a produtos de nomes diferentes. Corrija esses vínculos manualmente.'});
-        if(body.confirmConsolidate!==true)return json(res,409,{error:'Existem outros cadastros com as mesmas variações. Confirme a consolidação dos anúncios duplicados antes de liberar.',duplicateCount:duplicates.length});
-      }
+      const byId=new Map(erp.items.map(p=>[String(p.id),p]));
+      const ids=[...new Set(own.map(link=>String(link.erp_product_id)))];
+      const variants=ids.map(id=>byId.get(id));
+      if(variants.some(p=>!p||p.active===false||p.archivedAt))
+        return json(res,400,{error:'Existem vínculos inativos ou inexistentes. Revise as variações antes de liberar.'});
+      if(variants.some(p=>!sameErpModel(site.name,p.nome_produto||p.name)))
+        return json(res,400,{error:'Há vínculos de modelos diferentes neste produto. Corrija antes de liberar.'});
+      // Uma variação só pode ser compartilhada por cadastros do mesmo modelo.
+      const foreign=links.filter(link=>ids.includes(String(link.erp_product_id))&&!familyIds.has(String(link.site_product_id)));
+      if(foreign.length)return json(res,409,{error:'Há variações vinculadas a outro modelo. Revise os vínculos antes de liberar.'});
       // O mesmo procedimento atômico de revisão do ERP evita sobrescrever movimentações recentes.
       const changed=erp.items.map(p=>ids.includes(String(p.id))?{...p,publishOnSite:true}:p);
       const {data:saved,error:saveError}=await sb.from('erpluxdecor_documents')
@@ -146,14 +148,7 @@ export default async function handler(req,res){
         .select('revision');
       if(saveError)throw saveError;
       if(!saved?.length)return json(res,409,{error:'O estoque foi atualizado durante esta aprovação. Atualize a integração e tente novamente.'});
-      if(duplicates.length){
-        const {error:unlinkError}=await sb.from('luxdecor_erp_product_links').delete()
-          .in('erp_product_id',ids).neq('site_product_id',siteId);
-        if(unlinkError)throw unlinkError;
-        const {error:hideError}=await sb.from('luxdecor_products').update({is_active:false}).in('id',duplicateIds);
-        if(hideError)throw hideError;
-      }
-      return json(res,200,{ok:true,released:ids.length,duplicatesHidden:duplicates.length,sitePublished:site.is_active===true});
+      return json(res,200,{ok:true,released:ids.length,relatedCatalogRecords:familyIds.size,sitePublished:site.is_active===true});
     }
     if(action==='erpCreateDraft'){
       const erpId=String(body.erpProductId||'');
