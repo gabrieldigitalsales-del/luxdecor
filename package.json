@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "build": "node scripts/integration-regression.mjs && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test:integration": "node scripts/integration-regression.mjs"
   },
   "dependencies": {
     "react": "19.1.1",
