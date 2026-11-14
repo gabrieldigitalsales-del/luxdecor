@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {adminErpIntegrationInfo,adminLinkErp,adminUnlinkErp,adminCreateErpDraft} from '../services/catalog';
+import {adminErpIntegrationInfo,adminLinkErp,adminUnlinkErp,adminCreateErpDraft,adminReleaseErpLinked} from '../services/catalog';
 import './ErpIntegration.css';
 import {sameErpModel,modelTokens} from '../utils/erpModel';
 
@@ -61,10 +61,11 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   if(!approval)return;
   setBusy(true);setError('');setNotice('');
   try{
-   if(approval.remove)await adminUnlinkErp(approval.siteId,approval.erpId);
+   if(approval.release){await adminReleaseErpLinked(approval.siteId,approval.confirmConsolidate===true);await onCatalogChange();}
+   else if(approval.remove)await adminUnlinkErp(approval.siteId,approval.erpId);
    else await adminLinkErp(approval.siteId,approval.erpId,approval.manual?{manual:true,confirmedSameModel:manualVerified,confirmedSiteName:approval.siteName}:{});
    setApproval(null);setSelection(v=>({...v,[approval.siteId]:''}));
-   await load(true);setNotice(approval.remove?'Vínculo removido.':'Variação vinculada com sucesso.');
+   await load(true);setNotice(approval.release?'Variações liberadas no ERP. Verifique o produto no site.':approval.remove?'Vínculo removido.':'Variação vinculada com sucesso.');
   }catch(e){setError(e.message)}finally{setBusy(false)}
  };
  const createDraft=async()=>{
@@ -118,9 +119,17 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
     const candidates=availableErp.filter(x=>sameErpModel(p.name,x.modelName||x.name));
     const selected=selection[p.id]||'';
     const chosen=candidates.find(x=>String(x.id)===String(selected));
+    const ownUnreleased=links.filter(l=>!erpMap.get(String(l.erp_product_id))?.publishOnSite).length;
+    const overlappingIds=[...new Set((data.links||[]).filter(l=>String(l.site_product_id)!==String(p.id)&&links.some(own=>String(own.erp_product_id)===String(l.erp_product_id))).map(l=>String(l.site_product_id)))];
+    const overlappingProducts=products.filter(other=>overlappingIds.includes(String(other.id)));
     return <article className="erp-review-card" key={p.id}>
      <div className="erp-review-product">{p.image&&<img src={p.image} alt="" />}<div><strong>{p.name}</strong><small>{p.category||'Produto do catálogo'}</small><span className={links.length?'erp-review-pill is-linked':'erp-review-pill'}>{links.length?links.length+' variação(ões) associada(s)':'Aguardando associação'}</span></div></div>
      <div className="erp-review-detail">
+      {links.length>0&&<div className="erp-review-release-status">
+        <div><strong>{ownUnreleased?ownUnreleased+' variação(ões) aguardando liberação':'Variações autorizadas no ERP'}</strong>
+        <small>{overlappingIds.length?overlappingIds.length+' cadastro(s) compartilham as mesmas variações. Precisa consolidar.':'Vínculos registrados para este produto'}</small></div>
+        {ownUnreleased>0&&<button type="button" disabled={busy} onClick={()=>setApproval({release:true,siteId:p.id,siteName:p.name,variantCount:links.length,overlappingIds,overlappingNames:overlappingProducts.map(x=>x.name),confirmConsolidate:false})}>Revisar liberação</button>}
+       </div>}
       <div className="erp-review-linked">{links.length?links.map(l=>{
        const item=erpMap.get(String(l.erp_product_id));
        return <div className="erp-review-link" key={l.erp_product_id}>
@@ -167,12 +176,15 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   </div>}
   {approval&&<div className="erp-review-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setApproval(null)}}>
    <section className="erp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-review-dialog-title">
-    <h3 id="erp-review-dialog-title">{approval.remove?'Remover vínculo?':'Aprovar associação?'}</h3>
-    <p><b>Produto do site:</b> {approval.siteName}</p><p><b>Variação no ERP:</b> {approval.erpName}</p>
+    <h3 id="erp-review-dialog-title">{approval.release?'Liberar variações no site?':approval.remove?'Remover vínculo?':'Aprovar associação?'}</h3>
+    <p><b>Produto do site:</b> {approval.siteName}</p>
+    {!approval.release&&<p><b>Variação no ERP:</b> {approval.erpName}</p>}
+    {approval.release&&<p><b>Variações vinculadas:</b> {approval.variantCount}. Esta aprovação marca essas variações como “Exibir no site” no ERP. Não altera as quantidades físicas.</p>}
+    {approval.release&&approval.overlappingIds?.length>0&&<label className="erp-review-manual-confirm"><input type="checkbox" checked={approval.confirmConsolidate===true} onChange={e=>setApproval(v=>({...v,confirmConsolidate:e.target.checked}))}/><span>Confirmo consolidar o modelo neste produto e ocultar {approval.overlappingIds.length} cadastro(s) duplicado(s) do catálogo público. As fotos e os cadastros serão preservados para revisão.</span></label>}
     {!approval.remove&&approval.manual&&approval.needsConfirmation&&<label className="erp-review-manual-confirm"><input type="checkbox" checked={manualVerified} onChange={e=>setManualVerified(e.target.checked)}/><span>Conferi modelo, fábrica e referência. Confirmo que esta variação pertence ao mesmo produto exibido no site, mesmo com nomes diferentes.</span></label>}
     {!approval.remove&&!approval.publishOnSite&&<p className="erp-review-warning">Esta variação ainda não está liberada em “Exibir no site” no ERP. A associação não a publicará automaticamente.</p>}
     <p className="erp-review-dialog-note">Esta operação não altera o estoque físico, as imagens ou o cadastro original.</p>
-    <div className="erp-review-dialog-actions"><button type="button" disabled={busy} onClick={()=>setApproval(null)}>Cancelar</button><button type="button" disabled={busy||(!approval.remove&&approval.needsConfirmation&&!manualVerified)} onClick={approve}>{busy?'Salvando...':approval.remove?'Confirmar desvínculo':'Aprovar vínculo'}</button></div>
+    <div className="erp-review-dialog-actions"><button type="button" disabled={busy} onClick={()=>setApproval(null)}>Cancelar</button><button type="button" disabled={busy||(!approval.remove&&approval.needsConfirmation&&!manualVerified)||(approval.release&&approval.overlappingIds?.length>0&&!approval.confirmConsolidate)} onClick={approve}>{busy?'Salvando...':approval.release?'Liberar no site':approval.remove?'Confirmar desvínculo':'Aprovar vínculo'}</button></div>
    </section>
   </div>}
  </main>;
