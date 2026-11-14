@@ -161,3 +161,21 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
  .lux-product-variants{padding:15px 14px}
  .lux-product-variant-summary{align-items:flex-start;flex-direction:column}
 }
+
+/* Salvamento do catálogo — formulário recolhe, feedback compacto e acessível. */
+.product-save-backdrop{position:fixed;inset:0;z-index:20001;display:grid;place-items:center;padding:24px;background:rgba(8,20,41,.35);backdrop-filter:blur(7px);animation:luxSaveFade .28s ease both}
+.product-save-panel{box-sizing:border-box;width:min(100%,400px);padding:clamp(28px,5vw,42px);border:1px solid rgba(21,47,85,.13);border-radius:12px;background:#fbfaf8;box-shadow:0 25px 95px rgba(6,24,49,.25);text-align:center;animation:luxSaveRise .38s cubic-bezier(.2,.8,.2,1) both}
+.product-save-icon{width:76px;height:76px;display:grid;place-items:center;position:relative;margin:0 auto 22px;color:#173b6e}
+.product-save-ring{position:absolute;inset:2px;border:3px solid #e2e8ef;border-top-color:#173b6e;border-right-color:#173b6e;border-radius:50%;animation:luxSaveRotate 1.2s linear infinite}
+.product-save-mark{font-family:Georgia,serif;font-size:38px;line-height:1;font-weight:600}
+.product-save-overline{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.19em;font-weight:700;color:#8291a3}
+.product-save-panel h3{font-size:24px;font-weight:650;letter-spacing:-.04em;margin:12px 0 10px;color:#172e4e}
+.product-save-panel p{font-size:12px;line-height:1.65;color:#718097;margin:0 auto 24px;max-width:270px}
+.product-save-progress{height:4px;overflow:hidden;border-radius:9px;background:#e5eaf0}
+.product-save-progress span{display:block;width:38%;height:100%;border-radius:9px;background:#173b6e;animation:luxSaveBar 1.5s ease-in-out infinite}
+.product-save-panel small{display:block;margin-top:14px;font-size:10px;color:#8b98a7}
+@keyframes luxSaveFade{from{opacity:0}to{opacity:1}}
+@keyframes luxSaveRise{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes luxSaveRotate{to{transform:rotate(360deg)}}
+@keyframes luxSaveBar{0%{transform:translateX(-110%)}55%{transform:translateX(155%)}100%{transform:translateX(310%)}}
+@media(prefers-reduced-motion:reduce){.product-save-backdrop,.product-save-panel,.product-save-ring,.product-save-progress span{animation:none!important}.product-save-progress span{width:100%}}
