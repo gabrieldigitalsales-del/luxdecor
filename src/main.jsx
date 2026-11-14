@@ -2,12 +2,14 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './styles.css';
 import ErpIntegration from './components/ErpIntegration';
+import PromotionManager,{PromotionDialog} from './components/PromotionManager';
 import { supabaseConfigured } from './lib/supabase';
 import {
   fetchCatalog,
   fetchErpAvailability,
   applyErpAvailability,
   fetchSiteSettings,
+  fetchActivePromotion,
   getAdminSession,
   adminLogin,
   adminLogout,
@@ -64,6 +66,23 @@ function App(){
  const [settings,setSettings]=useState(()=>{const saved=JSON.parse(localStorage.getItem('lux_settings')||'null')||{};return {...DEFAULT_SETTINGS,...saved,siteImages:{...DEFAULT_SITE_IMAGES,...(saved.siteImages||{})}}});
  const [slide,setSlide]=useState(0); const [filter,setFilter]=useState('Todos'); const [query,setQuery]=useState(''); const [selected,setSelected]=useState(null); const [favorites,setFavorites]=useState(()=>{try{return JSON.parse(localStorage.getItem('lux_favorites')||'[]')}catch{return []}}); const [showFavorites,setShowFavorites]=useState(false); const [admin,setAdmin]=useState(false); const [waOpen,setWaOpen]=useState(false); const [mobileMenu,setMobileMenu]=useState(false); const [sort,setSort]=useState('featured'); const [zoom,setZoom]=useState(false); const [imageError,setImageError]=useState({});
  const [cloudState,setCloudState]=useState(supabaseConfigured?'loading':'local'); const [cloudMessage,setCloudMessage]=useState('');
+ const [activePromotion,setActivePromotion]=useState(null);
+ const [showPromotion,setShowPromotion]=useState(false);
+ useEffect(()=>{
+  let active=true;
+  if(location.pathname.replace(/\/$/,'')==='/admin')return;
+  fetchActivePromotion().then(p=>{
+   if(!active||!p)return;
+   const key='lux-promo-shown:'+String(p.updated_at||p.occasion);
+   try{if(sessionStorage.getItem(key))return;}catch{}
+   setActivePromotion(p);setShowPromotion(true);
+  }).catch(()=>{});
+  return()=>{active=false};
+ },[]);
+ const closePromotion=()=>{
+  if(activePromotion)try{sessionStorage.setItem('lux-promo-shown:'+String(activePromotion.updated_at||activePromotion.occasion),'1')}catch{}
+  setShowPromotion(false);
+ };
  useEffect(()=>{let live=true;(async()=>{if(!supabaseConfigured)return;try{const [catalog,remoteSettings]=await Promise.all([fetchCatalog(),fetchSiteSettings()]);if(!live)return;if(catalog?.length)setProducts(catalog);if(remoteSettings)setSettings(prev=>({...prev,...remoteSettings,siteImages:{...DEFAULT_SITE_IMAGES,...(remoteSettings.siteImages||{})}}));setCloudState('online')}catch(e){console.error(e);if(live){setCloudState('error');setCloudMessage(e.message||'Não foi possível carregar o catálogo online.')}}})();return()=>{live=false}},[]);
  useEffect(()=>{if(!supabaseConfigured)return;const update=async()=>{try{const availability=await fetchErpAvailability();setProducts(prev=>applyErpAvailability(prev,availability));}catch{}};const t=setInterval(update,60000);return()=>clearInterval(t)},[]);
  useEffect(()=>{const t=setInterval(()=>setSlide(s=>(s+1)%slides.length),6500);return()=>clearInterval(t)},[settings.siteImages]);
@@ -129,7 +148,8 @@ function App(){
   {whatsappDigits&&<button className="wa-float" onClick={()=>setWaOpen(!waOpen)} aria-label="Abrir WhatsApp"><WhatsAppIcon size={25}/><span>Falar com o vendedor</span></button>}
   {waOpen&&whatsappDigits&&<div className="wa-panel"><div className="wa-panel-head"><div><WhatsAppIcon/><b>Lux Decor</b></div><button onClick={()=>setWaOpen(false)}>×</button></div><p>Olá! Como podemos ajudar?</p><a href={wa('Olá! Quero saber mais sobre um produto da Lux Decor.')} target="_blank" rel="noopener noreferrer">Quero saber sobre um produto <span>→</span></a><a href={wa('Olá! Quero ajuda para montar um ambiente.')} target="_blank" rel="noopener noreferrer">Quero montar um ambiente <span>→</span></a><a href={wa('Olá! Gostaria de falar com um consultor da Lux Decor.')} target="_blank" rel="noopener noreferrer">Falar com consultor <span>→</span></a></div>}
 
-  {selected&&<ProductModal key={selected.id} p={selected} onClose={()=>setSelected(null)} wa={wa}/>} 
+  {selected&&<ProductModal key={selected.id} p={selected} onClose={()=>setSelected(null)} wa={wa}/>}
+  {showPromotion&&!admin&&activePromotion&&<PromotionDialog promotion={activePromotion} onClose={closePromotion}/>} 
   {admin&&<AdminPanel products={products} setProducts={setProducts} settings={settings} setSettings={setSettings} onClose={()=>{setAdmin(false);history.replaceState(null,'','/')}}/>}
  </div>
 }
@@ -290,9 +310,10 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  if(!session)return <div className="admin-overlay"><div className="admin-login"><button className="modal-close" onClick={onClose}>×</button><Brand/><div className="eyebrow">Admin protegido</div><h2>Entrar na Lux Decor</h2><p>Digite apenas a senha administrativa.</p><form onSubmit={login}><label>Senha<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoFocus required/></label>{authError&&<div className="admin-error">{authError}</div>}<button className="save-btn" disabled={!!busy}>{busy||'Entrar'}</button></form></div></div>;
  return <div className="admin-overlay admin-v2"><aside className="admin-panel admin-panel-wide">
    <header className="admin-head admin-head-v2"><div className="admin-brand"><img src={A+'logo-mark-navy.png'} alt="Lux Decor"/><div><b>Painel Lux Decor</b><small>Catálogo, imagens e configurações</small></div></div><div className="admin-head-actions"><button onClick={logout}>Sair</button><button onClick={onClose} aria-label="Fechar">×</button></div></header>
-   <nav className="admin-nav"><button className={view==='products'?'active':''} onClick={()=>setView('products')}>Produtos <span>{products.length}</span></button><button className={view==='erp'?'active':''} onClick={()=>setView('erp')}>Integração ERP</button><button className={view==='site'?'active':''} onClick={()=>setView('site')}>Imagens do site</button><button className={view==='settings'?'active':''} onClick={()=>setView('settings')}>Configurações</button></nav>
+   <nav className="admin-nav"><button className={view==='products'?'active':''} onClick={()=>setView('products')}>Produtos <span>{products.length}</span></button><button className={view==='erp'?'active':''} onClick={()=>setView('erp')}>Integração ERP</button><button className={view==='site'?'active':''} onClick={()=>setView('site')}>Imagens do site</button><button className={view==='promotions'?'active':''} onClick={()=>setView('promotions')}>Campanhas</button><button className={view==='settings'?'active':''} onClick={()=>setView('settings')}>Configurações</button></nav>
    {notice&&<div className="admin-notice">{notice}<button onClick={()=>setNotice('')}>×</button></div>}{busy&&<div className="admin-progress"><i/> {busy}</div>}
    {!supabaseConfigured&&<div className="admin-setup-warning"><b>Variáveis públicas do Supabase ausentes.</b><span>Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no Vercel.</span></div>}
+   {view==='promotions'&&<PromotionManager/>}
    {view==='erp'&&<ErpIntegration products={products} onCatalogChange={refresh} onEditDraft={async id=>{const latest=await adminFetchProducts();setAdminProducts(latest);const found=latest.find(p=>String(p.id)===String(id));if(found){openEdit(found);setView('products');setNotice('Rascunho do ERP criado. Adicione imagens e publique somente quando estiver pronto.')}else{setView('products');setNotice('Rascunho criado. Localize-o na lista de produtos para editar.')}}}/>} 
    {view==='products'&&<main className="admin-workspace">
      <div className="admin-title-row"><div><div className="eyebrow">Catálogo</div><h2>Produtos</h2><p>Adicione fotos, edite informações ou retire um item sem sair desta tela.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><input type="file" accept=".zip,application/zip" ref={bulkZipRef} hidden onChange={bulkZipUpload}/><button className="admin-primary" disabled={!!busy} onClick={()=>bulkZipRef.current?.click()}>Importar ZIP de produtos</button><button className="admin-primary" onClick={openNew}>+ Adicionar produto</button></div></div>{bulkProgress&&<p role="status" style={{padding:"12px 0"}}>Imagens vinculadas: {bulkProgress.complete}/{bulkProgress.total} — {bulkProgress.name}</p>}
