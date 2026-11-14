@@ -184,3 +184,19 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .product-editor-warning{grid-column:1/-1;display:flex;flex-direction:column;gap:5px;padding:14px 16px;margin:0 0 16px;border:1px solid #e6c7a4;border-left:3px solid #b46b27;background:#fff9f1;color:#754723;font-size:12px;line-height:1.55;animation:luxSaveRise .25s ease both}
 .product-editor-warning strong{font-size:12px;color:#6f3d15}
 .product-editor-warning span{overflow-wrap:anywhere}
+
+/* Selo da campanha ativa: independente do selo Novo/Destaque e só aparece quando selecionado. */
+.product-image-wrap{position:relative}
+.lux-campaign-badge{position:absolute;top:13px;left:12px;z-index:4;display:inline-flex;align-items:center;justify-content:center;min-height:29px;max-width:calc(100% - 75px);box-sizing:border-box;padding:8px 12px;pointer-events:none;transform:rotate(-2deg);border:1px solid rgba(255,255,255,.3);background:#12274a;color:white;font:800 10px/1.15 system-ui,sans-serif;letter-spacing:.075em;text-transform:uppercase;text-align:center;box-shadow:0 6px 16px rgba(0,0,0,.15);animation:luxCampaignAppear .35s ease both}
+.lux-campaign-black-friday,.lux-campaign-cyber-monday{background:#151515;color:#f5dfac;border-color:#d6b673;box-shadow:0 5px 18px rgba(0,0,0,.3)}
+.lux-campaign-natal{background:#7b2531;color:#fff5df}
+.lux-campaign-dia-das-maes,.lux-campaign-dia-dos-namorados,.lux-campaign-dia-da-mulher{background:#8c465a;color:#fff}
+.lux-campaign-dia-dos-pais{background:#173b6e;color:#edf6ff}
+.lux-campaign-queima-estoque,.lux-campaign-dia-do-consumidor{background:#a34320;color:#fff}
+.lux-campaign-ano-novo,.lux-campaign-aniversario{background:#f0e7cf;color:#383022;border-color:#c6b68b}
+.lux-campaign-checkbox{flex-wrap:wrap;align-content:center;justify-content:flex-start}
+.lux-campaign-checkbox small{flex-basis:100%;margin-left:28px;color:#78889a;font-weight:400;font-size:10px;line-height:1.45}
+.admin-product-campaign-mark{position:absolute;left:8px;bottom:8px;z-index:3;background:#192e4b;color:#fff;font-size:9px;font-weight:750;padding:6px 8px;text-transform:uppercase;letter-spacing:.045em}
+@keyframes luxCampaignAppear{from{opacity:0;transform:translateY(-8px) rotate(-2deg)}to{opacity:1;transform:translateY(0) rotate(-2deg)}}
+@media(max-width:640px){.lux-campaign-badge{top:9px;left:8px;padding:6px 9px;font-size:9px;min-height:26px;max-width:calc(100% - 55px)}}
+@media(prefers-reduced-motion:reduce){.lux-campaign-badge{animation:none}}
