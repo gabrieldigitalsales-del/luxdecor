@@ -29,4 +29,9 @@ assert.ok(admin.includes("modelNames.length!==1||factories.length!==1"),'Libera�
 assert.equal(catalogDisplayPrice({price:2999,priceLabel:'R$ 2.999',erpAvailability:{linked:true,options:[]}}),'Sob consulta','Não vazar preço manual quando preço ERP ainda não foi autorizado');
 assert.equal(catalogDisplayPrice({price:2999,priceLabel:'R$ 2.999',erpAvailability:{linked:true,sitePriceLabel:'R$ 3.500'}}),'R$ 3.500');
 assert.equal(catalogDisplayPrice({price:2999,priceLabel:'R$ 2.999'}),'R$ 2.999');
-console.log('OK: integração — aprovação, variações, preço protegido e vínculos preservados.');
+const main=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+assert.ok(!/\bconfirm\s*\(/.test(main),'Ações do Admin não devem usar confirmação nativa do navegador');
+assert.ok(main.includes('<AdminConfirmDialog'), 'Exclusões precisam de modal personalizado');
+const erpUi=fs.readFileSync(new URL('../src/components/ErpIntegration.jsx',import.meta.url),'utf8');
+assert.ok(erpUi.includes("modelTokens(item.modelName||item.name).join('-')"),'Fila deve agrupar modelo completo, não somente prefixo');
+console.log('OK: integração, publicação controlada, preço protegido e confirmações personalizadas.');
