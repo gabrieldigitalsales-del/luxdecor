@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './styles.css';
 import ErpIntegration from './components/ErpIntegration';
+import AdminConfirmDialog from './components/AdminConfirmDialog';
 import {catalogDisplayPrice} from './utils/catalogPrice';
 import PromotionManager,{PromotionDialog,PROMOTIONS} from './components/PromotionManager';
 import { supabaseConfigured } from './lib/supabase';
@@ -229,7 +230,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  const blank=()=>({name:'',category:'Outros',categoryId:null,price:'',priceLabel:'Sob consulta',image:'',images:[],tag:'Novo',promotionEnabled:false,desc:'',features:[],isActive:true,sortOrder:0});
  const [session,setSession]=useState(false); const [checking,setChecking]=useState(true); const [password,setPassword]=useState(''); const [authError,setAuthError]=useState('');
  const [products,setAdminProducts]=useState([]);
- const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState(''); const [savingProduct,setSavingProduct]=useState(false); const [editorWarning,setEditorWarning]=useState('');
+ const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState(''); const [savingProduct,setSavingProduct]=useState(false); const [editorWarning,setEditorWarning]=useState(''); const [confirmRequest,setConfirmRequest]=useState(null);
  const [search,setSearch]=useState(''); const [catFilter,setCatFilter]=useState('Todos'); const [editorTab,setEditorTab]=useState('basic');
  const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef(); const bulkZipRef=useRef(); const [bulkProgress,setBulkProgress]=useState(null);
  const fixedImages=[['hero0','Hero 01'],['hero1','Hero 02'],['hero2','Hero 03'],['hero3','Hero 04'],['editorial','Imagem editorial central'],['roomDining','Ambiente · Sala de jantar'],['roomLiving','Ambiente · Sala de estar'],['roomOutdoor','Ambiente · Área externa']];
@@ -257,7 +258,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
   const closeOnEscape=(event)=>{
    if(event.key!=='Escape'||event.defaultPrevented||event.isComposing)return;
    // A janela de aprovação da integração deve receber o Esc antes do painel.
-   if(document.querySelector('.erp-review-dialog[aria-modal="true"]'))return;
+   if(document.querySelector('.erp-review-dialog[aria-modal="true"]')||document.querySelector('.promo-dialog[aria-modal="true"]')||confirmRequest)return;
    // Não interromper uma gravação ou upload em andamento.
    if(busy)return;
    if(draft){event.preventDefault();closeEditor();return;}
@@ -265,13 +266,13 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
   };
   window.addEventListener('keydown',closeOnEscape);
   return()=>window.removeEventListener('keydown',closeOnEscape);
- },[draft,busy,onClose,pendingFiles]);
+ },[draft,busy,onClose,pendingFiles,confirmRequest]);
 
  function addFiles(fileList){const arr=[...fileList].filter(f=>f.type.startsWith('image/'));if(!arr.length)return;setEditorWarning('');const entries=arr.map(file=>({file,preview:URL.createObjectURL(file),id:`pending-${crypto.randomUUID?.()||Math.random()}`}));setPendingFiles(x=>[...x,...entries]);setDraft(d=>{const newImgs=entries.map(x=>x.preview);return {...d,image:d.image||newImgs[0]||'',images:[...(d.images||[]),...newImgs]}});}
  function fileChange(e){addFiles(e.target.files||[]);e.target.value=''}
  function drop(e){e.preventDefault();addFiles(e.dataTransfer.files||[])}
  function removePending(url){const item=pendingFiles.find(x=>x.preview===url);if(item?.preview)URL.revokeObjectURL(item.preview);setPendingFiles(x=>x.filter(i=>i.preview!==url));setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==url);return {...d,images:imgs,image:d.image===url?(imgs[0]||''):d.image}})}
- async function removeExisting(url){if(!draft?.id)return removePending(url);if(!confirm('Remover esta imagem do produto?'))return;setBusy('Removendo imagem...');try{await removeProductImage(draft.id,url);setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==url);return {...d,images:imgs,image:d.image===url?(imgs[0]||''):d.image}});setNotice('Imagem removida.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
+ function removeExisting(url){if(!draft?.id)return removePending(url);setConfirmRequest({kind:'image',url,title:'Remover imagem?',message:'A imagem será retirada do cadastro do produto.'})}
  async function save(){
   if(busy||savingProduct)return;
   if(!draft?.name?.trim()){setEditorWarning('Informe o nome do produto antes de salvar.');setEditorTab('basic');return}
@@ -310,7 +311,23 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
     setBusy('');
   }
  }
- async function removeProduct(id,name){if(!confirm(`Excluir “${name}”? Esta ação remove também as imagens do produto.`))return;setBusy('Excluindo produto...');try{await deleteProduct(id);await refresh();setNotice('Produto excluído.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
+ function removeProduct(id,name){setConfirmRequest({kind:'product',id,name,title:'Excluir produto?',message:'Excluir “'+name+'”? Esta ação também remove suas imagens do cadastro.'})}
+ async function executeAdminDelete(){
+  const request=confirmRequest;if(!request||busy)return;
+  setBusy(request.kind==='image'?'Removendo imagem...':'Excluindo produto...');
+  try{
+   if(request.kind==='image'){
+    await removeProductImage(draft.id,request.url);
+    setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==request.url);return {...d,images:imgs,image:d.image===request.url?(imgs[0]||''):d.image}});
+    setNotice('Imagem removida.');
+   }else{
+    await deleteProduct(request.id);await refresh();
+    setNotice('Produto excluído.');
+   }
+   setConfirmRequest(null);
+  }catch(error){setNotice(error.message||'Não foi possível concluir a exclusão.')}
+  finally{setBusy('')}
+ }
  async function fixedFile(e){const f=e.target.files?.[0];if(!f||!fixedKey)return;setBusy('Enviando imagem...');try{const url=await replaceSiteImage(fixedKey,f);setSettings(prev=>({...prev,siteImages:{...prev.siteImages,[fixedKey]:url}}));setNotice('Imagem do site atualizada.')}catch(err){setNotice(err.message)}finally{setBusy('');e.target.value='';setFixedKey(null)}}
  function chooseFixed(k){setFixedKey(k);setTimeout(()=>fixedRef.current?.click(),0)}
  async function persistSettings(){setBusy('Salvando configurações...');try{await saveSettings(settings);setNotice('Configurações salvas.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
@@ -334,6 +351,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
    </main>}
    {view==='site'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Conteúdo visual</div><h2>Imagens fixas do site</h2><p>Troque hero, editorial e ambientes com upload direto.</p></div></div><input ref={fixedRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={fixedFile}/><div className="fixed-image-grid fixed-image-grid-v2">{fixedImages.map(([k,label])=><div className="fixed-image-card fixed-image-card-v2" key={k}><img src={settings.siteImages?.[k]||DEFAULT_SITE_IMAGES[k]} alt=""/><div><b>{label}</b><button onClick={()=>chooseFixed(k)}>Trocar imagem</button></div></div>)}</div></main>}
    {view==='settings'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Loja</div><h2>Configurações</h2><p>Dados e informações do catálogo.</p></div></div><div className="admin-settings-stack"><div className="admin-settings-card"><h3>Loja</h3><label>WhatsApp<input value={settings.whatsapp||''} onChange={e=>setSettings({...settings,whatsapp:e.target.value})}/></label><label>Instagram<input value={settings.instagram||''} onChange={e=>setSettings({...settings,instagram:e.target.value})}/></label><button className="admin-primary" onClick={persistSettings}>Salvar configurações</button></div></div></main>}
+   {confirmRequest&&<AdminConfirmDialog title={confirmRequest.title} message={confirmRequest.message} busy={!!busy} onCancel={()=>setConfirmRequest(null)} onConfirm={executeAdminDelete}/>}
    {savingProduct&&<div className="product-save-backdrop" role="status" aria-live="polite" aria-label="Salvando produto">
      <div className="product-save-panel"><div className="product-save-icon"><span className="product-save-ring"/><span className="product-save-mark">L</span></div>
        <span className="product-save-overline">Lux Decor · Catálogo</span>
