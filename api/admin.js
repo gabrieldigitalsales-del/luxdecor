@@ -1,4 +1,5 @@
 import {readErpProducts,erpLabel} from './_erp.js';
+import {sameErpModel} from '../src/utils/erpModel.js';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -87,16 +88,22 @@ export default async function handler(req,res){
     if(action==='erpIntegrationInfo'){
       const [erp,links]=await Promise.all([readErpProducts(sb),sb.from('luxdecor_erp_product_links').select('site_product_id,erp_product_id')]);
       if(links.error)throw links.error;
-      return json(res,200,{erp:erp.items.map(p=>({id:String(p.id),name:erpLabel(p),stock:Number(p.stock)||0,unknown:/quantidade n[aã]o informada/i.test(String(p.observacoes||'')),publishOnSite:p.publishOnSite===true,price:Number(p.preco_final??p.price)||0})),links:links.data||[],revision:erp.revision});
+      return json(res,200,{erp:erp.items.map(p=>({id:String(p.id),name:erpLabel(p),modelName:String(p.nome_produto||p.name||''),stock:Number(p.stock)||0,unknown:/quantidade n[aã]o informada/i.test(String(p.observacoes||'')),publishOnSite:p.publishOnSite===true,price:Number(p.preco_final??p.price)||0})),links:links.data||[],revision:erp.revision});
     }
     if(action==='erpLink'){
       const siteId=String(body.siteProductId||''),erpId=String(body.erpProductId||'');
       if(!/^[0-9a-f-]{36}$/i.test(siteId)||!erpId||erpId.length>128)return json(res,400,{error:'Produto inválido.'});
       const erp=await readErpProducts(sb);
-      if(!erp.items.some(p=>String(p.id)===erpId))return json(res,404,{error:'Item não encontrado no ERP.'});
-      const {data:site,error:siteError}=await sb.from('luxdecor_products').select('id').eq('id',siteId).maybeSingle();
+      const erpItem=erp.items.find(p=>String(p.id)===erpId);
+      if(!erpItem)return json(res,404,{error:'Item não encontrado no ERP.'});
+      if(erpItem.active===false||erpItem.archivedAt||erpItem.publishOnSite!==true)return json(res,400,{error:'Esta variação precisa estar ativa e liberada no ERP.'});
+      const {data:site,error:siteError}=await sb.from('luxdecor_products').select('id,name').eq('id',siteId).maybeSingle();
       if(siteError)throw siteError;
       if(!site)return json(res,404,{error:'Produto não encontrado no site.'});
+      if(!sameErpModel(site.name,erpItem.nome_produto||erpItem.name))return json(res,400,{error:'Esta variação pertence a outro modelo. Escolha uma variação do mesmo produto.'});
+      const {data:elsewhere,error:lookupError}=await sb.from('luxdecor_erp_product_links').select('site_product_id').eq('erp_product_id',erpId);
+      if(lookupError)throw lookupError;
+      if((elsewhere||[]).some(link=>String(link.site_product_id)!==siteId))return json(res,409,{error:'Esta variação já está associada a outro produto.'});
       const {error}=await sb.from('luxdecor_erp_product_links').upsert({site_product_id:siteId,erp_product_id:erpId},{onConflict:'site_product_id,erp_product_id'});if(error)throw error;
       return json(res,200,{ok:true});
     }
