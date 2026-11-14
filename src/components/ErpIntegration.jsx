@@ -43,7 +43,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  const waitingGroups=useMemo(()=>{
   const groups=new Map();
   for(const item of waiting){
-   const key=[norm(item.supplier),modelTokens(item.modelName||item.name)[0]||String(item.id)].join('::');
+   const key=[norm(item.supplier),modelTokens(item.modelName||item.name).join('-')||norm(item.modelName||item.name)||String(item.id)].join('::');
    if(!groups.has(key))groups.set(key,{...item,variants:[]});
    groups.get(key).variants.push(item);
   }
