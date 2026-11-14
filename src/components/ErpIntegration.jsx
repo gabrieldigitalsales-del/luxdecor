@@ -37,7 +37,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  },[data.links]);
  const linkedIds=useMemo(()=>new Set((data.links||[]).map(x=>String(x.erp_product_id))),[data.links]);
  const availableErp=useMemo(()=>(data.erp||[]).filter(x=>!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
- const waiting=useMemo(()=>(data.erp||[]).filter(x=>x.publishOnSite&&!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
+ const waiting=useMemo(()=>(data.erp||[]).filter(x=>!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
  const notReleased=useMemo(()=>(data.erp||[]).filter(x=>!x.publishOnSite),[data.erp]);
  const approvedLinks=useMemo(()=>(data.links||[]).filter(link=>erpMap.get(String(link.erp_product_id))?.publishOnSite===true).length,[data.links,erpMap]);
  const waitingGroups=useMemo(()=>{
@@ -102,7 +102,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
    <p>O estoque contém essas variações, mas elas precisam da marcação “Exibir no site” no cadastro do ERP. O vínculo existente, sozinho, não libera preço e disponibilidade. Não alteramos essas permissões automaticamente.</p>
   </section>}
   {!loading&&waiting.length>0&&<section className="erp-review-pending">
-   <div><strong>Fila de aprovação do ERP</strong><p>Itens liberados no ERP que ainda não pertencem a um produto do site. Associe uma variação a um produto existente abaixo ou crie um rascunho para preparar fotos e publicação.</p></div>
+   <div><strong>Fila de aprovação do ERP</strong><p>Modelos do ERP ainda sem vínculo no site, liberados ou não. Prepare um único rascunho por modelo; a publicação e a sincronização só serão ativadas depois de sua aprovação.</p></div>
    <div className="erp-review-queue">{waitingGroups.map(x=><div key={x.id} className="erp-review-queue-row">
     <div><strong>{x.modelName||x.name}</strong><small>{x.supplier?x.supplier+' · ':''}{x.variants.length} {x.variants.length===1?'variação':'variações'} do mesmo modelo</small></div>
     <button type="button" disabled={busy} onClick={()=>{setNewDraft(x);setDraftName(String(x.name||'').split(' · ')[0]);setDraftCategory(/sof[aá]|chaise/i.test(x.name)?'Sofás':'Outros');setDraftDescription('')}}>{x.variants.length===1?'Criar rascunho':'Importar modelo'}</button>
