@@ -130,7 +130,6 @@ export default async function handler(req,res){
       const familyIds=new Set((family||[]).map(p=>String(p.id)));
       const own=links.filter(link=>familyIds.has(String(link.site_product_id)));
       if(!own.length)return json(res,400,{error:'Associe ao menos uma variação do ERP antes de liberar este produto.'});
-      const byId=new Map(erp.items.map(p=>[String(p.id),p]));
       const ids=[...new Set(own.map(link=>String(link.erp_product_id)))];
       const variants=ids.map(id=>byId.get(id));
       if(variants.some(p=>!p||p.active===false||p.archivedAt))
