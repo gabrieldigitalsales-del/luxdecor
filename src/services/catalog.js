@@ -153,7 +153,12 @@ async function uploadWithSignedUrl(file,bucket,folder){
 }
 
 export async function saveProduct(product,newFiles=[]){
-  const {id}=await adminApi('saveProduct',{product:{...product,image:undefined,images:undefined}});
+  const requestedPublish=product.isActive!==false;
+  // Novos rascunhos com fotos ainda não enviadas precisam ser criados ocultos:
+  // só publicamos após todas as imagens e a capa estarem salvas.
+  const stageHidden=requestedPublish&&newFiles.length>0&&(!product.id||product.isActive===false);
+  const staged={...product,isActive:stageHidden?false:product.isActive,image:undefined,images:undefined};
+  const {id}=await adminApi('saveProduct',{product:staged});
   const pendingBlobs=(product.images||[]).filter(x=>String(x).startsWith('blob:'));
   const chosenPendingIndex=String(product.image||'').startsWith('blob:')?pendingBlobs.indexOf(product.image):-1;
   const uploaded=[];
@@ -163,10 +168,11 @@ export async function saveProduct(product,newFiles=[]){
     await adminApi('addProductImage',{productId:id,url:up.url,path:up.path,sortOrder:100+i,isCover:false});
   }
   let cover=null;
-  if(chosenPendingIndex>=0 && uploaded[chosenPendingIndex]) cover=uploaded[chosenPendingIndex].url;
-  else if(product.image && /^https?:/.test(product.image)) cover=product.image;
-  else if(uploaded[0]) cover=uploaded[0].url;
-  if(cover) await adminApi('setCover',{productId:id,url:cover});
+  if(chosenPendingIndex>=0&&uploaded[chosenPendingIndex])cover=uploaded[chosenPendingIndex].url;
+  else if(product.image&&/^https?:/.test(product.image))cover=product.image;
+  else if(uploaded[0])cover=uploaded[0].url;
+  if(cover)await adminApi('setCover',{productId:id,url:cover});
+  if(stageHidden)await adminApi('saveProduct',{product:{...staged,id,isActive:true}});
   return id;
 }
 
