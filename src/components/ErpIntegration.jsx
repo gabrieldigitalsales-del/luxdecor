@@ -106,7 +106,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   <div className="erp-review-list">
    {visible.map(p=>{
     const links=linksByProduct.get(String(p.id))||[];
-    const candidates=availableErp.filter(x=>x.publishOnSite===true&&sameErpModel(p.name,x.modelName||x.name));
+    const candidates=availableErp.filter(x=>sameErpModel(p.name,x.modelName||x.name));
     const selected=selection[p.id]||'';
     const chosen=candidates.find(x=>String(x.id)===String(selected));
     return <article className="erp-review-card" key={p.id}>
@@ -121,11 +121,11 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
       }):<p className="erp-review-muted">Nenhuma variação associada. Escolha abaixo uma variação correspondente.</p>}</div>
       <div className="erp-review-add">
        <select aria-label={'Variação do ERP para '+p.name} value={chosen?selected:''} disabled={busy||candidates.length===0} onChange={e=>setSelection(v=>({...v,[p.id]:e.target.value}))}>
-        <option value="">{candidates.length?'Selecionar variação deste modelo':'Nenhuma variação liberada deste modelo'}</option>
+        <option value="">{candidates.length?'Selecionar variação deste modelo':'Nenhuma variação deste modelo encontrada'}</option>
         {candidates.filter(x=>!links.some(l=>String(l.erp_product_id)===String(x.id))).map(x=><option key={x.id} value={x.id}>{x.name} · {x.publishOnSite?'Liberada':'Não liberada'} · {x.unknown?'A conferir':x.stock+' un.'}</option>)}
        </select>
-       <button type="button" disabled={!chosen||busy} onClick={()=>setApproval({siteId:p.id,erpId:selected,siteName:p.name,erpName:chosen?.name,publishOnSite:chosen?.publishOnSite,price:chosen?.price})}>Revisar vínculo</button>
-       {!candidates.length&&<small className="erp-review-model-hint">Somente variações do modelo “{p.name}” aparecem aqui. Confira o nome cadastrado no ERP se não houver opções.</small>}
+       <button type="button" disabled={!chosen||!chosen.publishOnSite||busy} onClick={()=>setApproval({siteId:p.id,erpId:selected,siteName:p.name,erpName:chosen?.name,publishOnSite:chosen?.publishOnSite,price:chosen?.price})}>Revisar vínculo</button>
+       {chosen&&!chosen.publishOnSite&&<small className="erp-review-model-hint">Esta variação existe no ERP, mas precisa ser marcada como “Exibir no site” para ser vinculada.</small>}{!candidates.length&&<small className="erp-review-model-hint">Nenhuma variação do modelo “{p.name}” foi encontrada. Confira se o nome do modelo no ERP é correspondente.</small>}
       </div>
      </div>
     </article>;
