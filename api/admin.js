@@ -1,4 +1,4 @@
-import {readErpProducts,erpLabel} from './_erp.js';
+import {readErpProducts,erpLabel,ERP_TENANT,ERP_KEY} from './_erp.js';
 import {sameErpModel} from '../src/utils/erpModel.js';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -140,15 +140,12 @@ export default async function handler(req,res){
       }
       // O mesmo procedimento atômico de revisão do ERP evita sobrescrever movimentações recentes.
       const changed=erp.items.map(p=>ids.includes(String(p.id))?{...p,publishOnSite:true}:p);
-      const {error:saveError}=await sb.rpc('erpluxdecor_save_documents',{
-        p_changes:{'luxdecor-products-v12':JSON.stringify(changed)},
-        p_expected:{'luxdecor-products-v12':erp.revision},
-      });
-      if(saveError){
-        if(/revision|conflict|conflito|version|vers[aã]o/i.test(saveError.message||''))
-          return json(res,409,{error:'O estoque mudou enquanto você confirmava. Atualize a integração e tente novamente.'});
-        throw saveError;
-      }
+      const {data:saved,error:saveError}=await sb.from('erpluxdecor_documents')
+        .update({document_value:JSON.stringify(changed),revision:Number(erp.revision)+1,updated_at:new Date().toISOString()})
+        .eq('tenant_owner_id',ERP_TENANT).eq('document_key',ERP_KEY).eq('revision',erp.revision)
+        .select('revision');
+      if(saveError)throw saveError;
+      if(!saved?.length)return json(res,409,{error:'O estoque foi atualizado durante esta aprovação. Atualize a integração e tente novamente.'});
       if(duplicates.length){
         const {error:unlinkError}=await sb.from('luxdecor_erp_product_links').delete()
           .in('erp_product_id',ids).neq('site_product_id',siteId);
