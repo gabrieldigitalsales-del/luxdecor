@@ -199,7 +199,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  const blank=()=>({name:'',category:'Outros',categoryId:null,price:'',priceLabel:'Sob consulta',image:'',images:[],tag:'Novo',desc:'',features:[],isActive:true,sortOrder:0});
  const [session,setSession]=useState(false); const [checking,setChecking]=useState(true); const [password,setPassword]=useState(''); const [authError,setAuthError]=useState('');
  const [products,setAdminProducts]=useState([]);
- const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState(''); const [savingProduct,setSavingProduct]=useState(false);
+ const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState(''); const [savingProduct,setSavingProduct]=useState(false); const [editorWarning,setEditorWarning]=useState('');
  const [search,setSearch]=useState(''); const [catFilter,setCatFilter]=useState('Todos'); const [editorTab,setEditorTab]=useState('basic');
  const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef(); const bulkZipRef=useRef(); const [bulkProgress,setBulkProgress]=useState(null);
  const fixedImages=[['hero0','Hero 01'],['hero1','Hero 02'],['hero2','Hero 03'],['hero3','Hero 04'],['editorial','Imagem editorial central'],['roomDining','Ambiente · Sala de jantar'],['roomLiving','Ambiente · Sala de estar'],['roomOutdoor','Ambiente · Área externa']];
@@ -220,8 +220,8 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
   catch(err){setNotice('Falha na importação: '+(err?.message||'Erro desconhecido'));}
   finally{setBusy('');}
  }
- function openNew(){setDraft(blank());setPendingFiles([]);setEditorTab('photos')}
- function openEdit(p){setDraft({...p,images:[...(p.images||[])]});setPendingFiles([]);setEditorTab('basic')}
+ function openNew(){setDraft(blank());setPendingFiles([]);setEditorWarning('');setEditorTab('photos')}
+ function openEdit(p){setDraft({...p,images:[...(p.images||[])]});setPendingFiles([]);setEditorWarning('');setEditorTab('basic')}
  function closeEditor(){pendingFiles.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));setDraft(null);setPendingFiles([])}
  useEffect(()=>{
   const closeOnEscape=(event)=>{
@@ -237,14 +237,21 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
   return()=>window.removeEventListener('keydown',closeOnEscape);
  },[draft,busy,onClose,pendingFiles]);
 
- function addFiles(fileList){const arr=[...fileList].filter(f=>f.type.startsWith('image/'));if(!arr.length)return;const entries=arr.map(file=>({file,preview:URL.createObjectURL(file),id:`pending-${crypto.randomUUID?.()||Math.random()}`}));setPendingFiles(x=>[...x,...entries]);setDraft(d=>{const newImgs=entries.map(x=>x.preview);return {...d,image:d.image||newImgs[0]||'',images:[...(d.images||[]),...newImgs]}});}
+ function addFiles(fileList){const arr=[...fileList].filter(f=>f.type.startsWith('image/'));if(!arr.length)return;setEditorWarning('');const entries=arr.map(file=>({file,preview:URL.createObjectURL(file),id:`pending-${crypto.randomUUID?.()||Math.random()}`}));setPendingFiles(x=>[...x,...entries]);setDraft(d=>{const newImgs=entries.map(x=>x.preview);return {...d,image:d.image||newImgs[0]||'',images:[...(d.images||[]),...newImgs]}});}
  function fileChange(e){addFiles(e.target.files||[]);e.target.value=''}
  function drop(e){e.preventDefault();addFiles(e.dataTransfer.files||[])}
  function removePending(url){const item=pendingFiles.find(x=>x.preview===url);if(item?.preview)URL.revokeObjectURL(item.preview);setPendingFiles(x=>x.filter(i=>i.preview!==url));setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==url);return {...d,images:imgs,image:d.image===url?(imgs[0]||''):d.image}})}
  async function removeExisting(url){if(!draft?.id)return removePending(url);if(!confirm('Remover esta imagem do produto?'))return;setBusy('Removendo imagem...');try{await removeProductImage(draft.id,url);setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==url);return {...d,images:imgs,image:d.image===url?(imgs[0]||''):d.image}});setNotice('Imagem removida.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
  async function save(){
   if(busy||savingProduct)return;
-  if(!draft?.name?.trim()){setNotice('Informe o nome do produto.');setEditorTab('basic');return}
+  if(!draft?.name?.trim()){setEditorWarning('Informe o nome do produto antes de salvar.');setEditorTab('basic');return}
+  const hasPhoto=Boolean((draft.images||[]).some(x=>String(x||'').trim())||String(draft.image||'').trim()||pendingFiles.length);
+  if(draft.isActive!==false&&!hasPhoto){
+    setEditorWarning('Para publicar o produto, adicione pelo menos uma imagem. Você também pode deixá-lo como rascunho desmarcando “Produto publicado”.');
+    setEditorTab('photos');
+    return;
+  }
+  setEditorWarning('');
   const snapshot={...draft,images:[...(draft.images||[])]};
   const files=pendingFiles.map(x=>x.file);
   setNotice('');
@@ -259,7 +266,15 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
     closeEditor();
     setNotice('Produto salvo com sucesso.');
   }catch(error){
-    setNotice('Não foi possível salvar: '+(error?.message||'Erro inesperado')+'. Os dados foram preservados.');
+    const message=error?.message||'Erro inesperado';
+    if(/foto|imagem|capa/i.test(message)){
+      setEditorTab('photos');
+      setEditorWarning(message+' Os dados foram preservados.');
+      setNotice('');
+    }else{
+      setEditorWarning('Não foi possível salvar: '+message+'. Os dados foram preservados.');
+      setNotice('');
+    }
   }finally{
     setSavingProduct(false);
     setBusy('');
@@ -300,6 +315,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
    {draft&&!savingProduct&&<div className="admin-editor-backdrop"><section className="admin-editor-v2"><header><div><div className="eyebrow">{draft.id?'Editar item':'Novo item'}</div><h2>{draft.id?draft.name||'Produto':'Adicionar produto'}</h2></div><button className="editor-close" onClick={closeEditor}>×</button></header>
      <div className="editor-tabs"><button className={editorTab==='basic'?'active':''} onClick={()=>setEditorTab('basic')}>01 Informações</button><button className={editorTab==='photos'?'active':''} onClick={()=>setEditorTab('photos')}>02 Fotos <span>{draft.images?.length||0}</span></button><button className={editorTab==='details'?'active':''} onClick={()=>setEditorTab('details')}>03 Detalhes</button></div>
      <div className="editor-body">
+       {editorWarning&&<div className="product-editor-warning" role="alert"><strong>Verifique o cadastro</strong><span>{editorWarning}</span></div>}
        {editorTab==='basic'&&<div className="editor-grid"><label className="wide">Nome do produto<input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} placeholder="Ex.: Sofá Retrátil Milão"/></label><label>Categoria<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{CATEGORIES.map(x=><option key={x}>{x}</option>)}</select></label><label>Selo<input value={draft.tag||''} onChange={e=>setDraft({...draft,tag:e.target.value})} placeholder="Novo, Destaque..."/></label><label>Preço numérico<input type="number" step="0.01" value={draft.price??''} onChange={e=>setDraft({...draft,price:e.target.value})} placeholder="Opcional"/></label><label>Preço exibido<input value={draft.priceLabel||''} onChange={e=>setDraft({...draft,priceLabel:e.target.value})} placeholder="Ex.: A partir de R$ 2.999"/></label><label>Ordem<input type="number" value={draft.sortOrder||0} onChange={e=>setDraft({...draft,sortOrder:Number(e.target.value)})}/></label><label className="toggle-line"><input type="checkbox" checked={draft.isActive!==false} onChange={e=>setDraft({...draft,isActive:e.target.checked})}/> Produto publicado</label>}</div>}
        {editorTab==='photos'&&<div className="photos-editor"><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={fileChange}/><div className="drop-zone" onClick={()=>fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={drop}><div className="drop-icon">＋</div><b>Arraste as fotos aqui</b><span>ou clique para selecionar várias imagens</span><small>JPG, PNG ou WEBP</small></div><div className="photo-manager">{(draft.images||[]).map((url,i)=><div className={draft.image===url?'photo-tile cover':'photo-tile'} key={url+i}><img src={url} alt=""/><div className="photo-actions"><button onClick={()=>setDraft({...draft,image:url})}>{draft.image===url?'Capa atual':'Definir capa'}</button><button className="danger" onClick={()=>String(url).startsWith('blob:')?removePending(url):removeExisting(url)}>Remover</button></div><span>{draft.image===url?'CAPA':String(url).startsWith('blob:')?'NOVA':'SALVA'}</span></div>)}</div></div>}
        {editorTab==='details'&&<div className="editor-grid"><label className="wide">Descrição<textarea value={draft.desc||''} onChange={e=>setDraft({...draft,desc:e.target.value})} placeholder="Descrição curta e comercial do produto"/></label><label className="wide">Características<textarea value={(draft.features||[]).join('\n')} onChange={e=>setDraft({...draft,features:e.target.value.split('\n').map(x=>x.trim()).filter(Boolean)})} placeholder={'Uma por linha\nEx.: Madeira maciça\nEx.: Espuma D33'}/></label></div>}
