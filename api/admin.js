@@ -96,7 +96,7 @@ export default async function handler(req,res){
       const erp=await readErpProducts(sb);
       const erpItem=erp.items.find(p=>String(p.id)===erpId);
       if(!erpItem)return json(res,404,{error:'Item não encontrado no ERP.'});
-      if(erpItem.active===false||erpItem.archivedAt||erpItem.publishOnSite!==true)return json(res,400,{error:'Esta variação precisa estar ativa e liberada no ERP.'});
+      if(erpItem.active===false||erpItem.archivedAt)return json(res,400,{error:'Esta variação está inativa ou arquivada no ERP.'});
       const {data:site,error:siteError}=await sb.from('luxdecor_products').select('id,name').eq('id',siteId).maybeSingle();
       if(siteError)throw siteError;
       if(!site)return json(res,404,{error:'Produto não encontrado no site.'});
@@ -105,7 +105,14 @@ export default async function handler(req,res){
       if(!matched&&!manualConfirmed)return json(res,400,{error:'Os modelos possuem nomes diferentes. Use a busca manual e confirme expressamente que são o mesmo produto.'});
       const {data:elsewhere,error:lookupError}=await sb.from('luxdecor_erp_product_links').select('site_product_id').eq('erp_product_id',erpId);
       if(lookupError)throw lookupError;
-      if((elsewhere||[]).some(link=>String(link.site_product_id)!==siteId))return json(res,409,{error:'Esta variação já está associada a outro produto.'});
+      if((elsewhere||[]).some(link=>String(link.site_product_id)!==siteId)){
+        const linkedIds=[...new Set((elsewhere||[]).filter(link=>String(link.site_product_id)!==siteId).map(link=>String(link.site_product_id)))];
+        const {data:related,error:relatedError}=await sb.from('luxdecor_products').select('id,name').in('id',linkedIds);
+        if(relatedError)throw relatedError;
+        const normalizeName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('pt-BR');
+        if(!related||related.length!==linkedIds.length||related.some(other=>normalizeName(other.name)!==normalizeName(site.name)))
+          return json(res,409,{error:'Esta variação já está vinculada a outro modelo. Confira os vínculos anteriores.'});
+      }
       const {error}=await sb.from('luxdecor_erp_product_links').upsert({site_product_id:siteId,erp_product_id:erpId},{onConflict:'site_product_id,erp_product_id'});if(error)throw error;
       return json(res,200,{ok:true});
     }
@@ -134,8 +141,12 @@ export default async function handler(req,res){
       const variants=ids.map(id=>byId.get(id));
       if(variants.some(p=>!p||p.active===false||p.archivedAt))
         return json(res,400,{error:'Existem vínculos inativos ou inexistentes. Revise as variações antes de liberar.'});
-      if(variants.some(p=>!sameErpModel(site.name,p.nome_produto||p.name)))
-        return json(res,400,{error:'Há vínculos de modelos diferentes neste produto. Corrija antes de liberar.'});
+      // Compare a identidade completa do modelo no ERP: vínculos manuais podem ter nomes comerciais diferentes.
+      const normalizedName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('pt-BR');
+      const modelNames=[...new Set(variants.map(p=>normalizedName(p.nome_produto||p.name)))];
+      const factories=[...new Set(variants.map(p=>normalizedName(p.fornecedor||p.supplier||p.brand)))];
+      if(modelNames.length!==1||factories.length!==1)
+        return json(res,409,{error:'Há modelos ou fabricantes diferentes no mesmo grupo. Revise os vínculos antes da liberação.'});
       // Uma variação só pode ser compartilhada por cadastros do mesmo modelo.
       const foreign=links.filter(link=>ids.includes(String(link.erp_product_id))&&!familyIds.has(String(link.site_product_id)));
       if(foreign.length)return json(res,409,{error:'Há variações vinculadas a outro modelo. Revise os vínculos antes de liberar.'});
