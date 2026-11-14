@@ -252,7 +252,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
   finally{setBusy('');}
  }
  function openNew(){setDraft(blank());setPendingFiles([]);setEditorWarning('');setEditorTab('photos')}
- function openEdit(p){setDraft({...p,images:[...(p.images||[])]});setPendingFiles([]);setEditorWarning('');setEditorTab('basic')}
+ function openEdit(p){setDraft({...p,wasHidden:p.isActive===false,images:[...(p.images||[])]});setPendingFiles([]);setEditorWarning('');setEditorTab('basic')}
  function closeEditor(){pendingFiles.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));setDraft(null);setPendingFiles([])}
  useEffect(()=>{
   const closeOnEscape=(event)=>{
