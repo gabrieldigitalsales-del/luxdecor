@@ -64,7 +64,7 @@ export async function fetchErpAvailability(){
  const data=await res.json();return data.products||{};
 }
 export async function adminErpIntegrationInfo(){return adminApi('erpIntegrationInfo');}
-export async function adminLinkErp(siteProductId,erpProductId){return adminApi('erpLink',{siteProductId,erpProductId});}
+export async function adminLinkErp(siteProductId,erpProductId,options={}){return adminApi('erpLink',{siteProductId,erpProductId,...options});}
 export async function adminUnlinkErp(siteProductId,erpProductId){return adminApi('erpUnlink',{siteProductId,erpProductId});}
 export async function adminCreateErpDraft(erpProductId,product){return adminApi('erpCreateDraft',{erpProductId,...product});}
 
