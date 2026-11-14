@@ -61,7 +61,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   if(!approval)return;
   setBusy(true);setError('');setNotice('');
   try{
-   if(approval.release){await adminReleaseErpLinked(approval.siteId,approval.confirmConsolidate===true);await onCatalogChange();}
+   if(approval.release){await adminReleaseErpLinked(approval.siteId);await onCatalogChange();}
    else if(approval.remove)await adminUnlinkErp(approval.siteId,approval.erpId);
    else await adminLinkErp(approval.siteId,approval.erpId,approval.manual?{manual:true,confirmedSameModel:manualVerified,confirmedSiteName:approval.siteName}:{});
    setApproval(null);setSelection(v=>({...v,[approval.siteId]:''}));
@@ -127,7 +127,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
      <div className="erp-review-detail">
       {links.length>0&&<div className="erp-review-release-status">
         <div><strong>{ownUnreleased?ownUnreleased+' variação(ões) aguardando liberação':'Variações autorizadas no ERP'}</strong>
-        <small>{overlappingIds.length?overlappingIds.length+' cadastro(s) compartilham as mesmas variações. Precisa consolidar.':'Vínculos registrados para este produto'}</small></div>
+        <small>{overlappingIds.length?overlappingIds.length+' cadastro(s) do mesmo modelo compartilham variações; o site exibirá um único produto.':'Vínculos registrados para este produto'}</small></div>
         {ownUnreleased>0&&<button type="button" disabled={busy} onClick={()=>setApproval({release:true,siteId:p.id,siteName:p.name,variantCount:links.length,overlappingIds,overlappingNames:overlappingProducts.map(x=>x.name),confirmConsolidate:false})}>Revisar liberação</button>}
        </div>}
       <div className="erp-review-linked">{links.length?links.map(l=>{
@@ -180,11 +180,11 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
     <p><b>Produto do site:</b> {approval.siteName}</p>
     {!approval.release&&<p><b>Variação no ERP:</b> {approval.erpName}</p>}
     {approval.release&&<p><b>Variações vinculadas:</b> {approval.variantCount}. Esta aprovação marca essas variações como “Exibir no site” no ERP. Não altera as quantidades físicas.</p>}
-    {approval.release&&approval.overlappingIds?.length>0&&<label className="erp-review-manual-confirm"><input type="checkbox" checked={approval.confirmConsolidate===true} onChange={e=>setApproval(v=>({...v,confirmConsolidate:e.target.checked}))}/><span>Confirmo consolidar o modelo neste produto e ocultar {approval.overlappingIds.length} cadastro(s) duplicado(s) do catálogo público. As fotos e os cadastros serão preservados para revisão.</span></label>}
+    {approval.release&&approval.overlappingIds?.length>0&&<p className="erp-review-dialog-note">O ERP possui vários cadastros do mesmo modelo. As variações continuarão preservadas e o site as reunirá em um único produto, sem ocultar ou excluir os cadastros do banco.</p>}
     {!approval.remove&&approval.manual&&approval.needsConfirmation&&<label className="erp-review-manual-confirm"><input type="checkbox" checked={manualVerified} onChange={e=>setManualVerified(e.target.checked)}/><span>Conferi modelo, fábrica e referência. Confirmo que esta variação pertence ao mesmo produto exibido no site, mesmo com nomes diferentes.</span></label>}
     {!approval.remove&&!approval.publishOnSite&&<p className="erp-review-warning">Esta variação ainda não está liberada em “Exibir no site” no ERP. A associação não a publicará automaticamente.</p>}
     <p className="erp-review-dialog-note">Esta operação não altera o estoque físico, as imagens ou o cadastro original.</p>
-    <div className="erp-review-dialog-actions"><button type="button" disabled={busy} onClick={()=>setApproval(null)}>Cancelar</button><button type="button" disabled={busy||(!approval.remove&&approval.needsConfirmation&&!manualVerified)||(approval.release&&approval.overlappingIds?.length>0&&!approval.confirmConsolidate)} onClick={approve}>{busy?'Salvando...':approval.release?'Liberar no site':approval.remove?'Confirmar desvínculo':'Aprovar vínculo'}</button></div>
+    <div className="erp-review-dialog-actions"><button type="button" disabled={busy} onClick={()=>setApproval(null)}>Cancelar</button><button type="button" disabled={busy||(!approval.remove&&approval.needsConfirmation&&!manualVerified)} onClick={approve}>{busy?'Salvando...':approval.release?'Liberar no site':approval.remove?'Confirmar desvínculo':'Aprovar vínculo'}</button></div>
    </section>
   </div>}
  </main>;
