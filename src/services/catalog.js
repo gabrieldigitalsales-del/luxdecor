@@ -113,6 +113,19 @@ export async function adminUnlinkErp(siteProductId,erpProductId){return adminApi
 export async function adminCreateErpDraft(erpProductId,product){return adminApi('erpCreateDraft',{erpProductId,...product});}
 export async function adminReleaseErpLinked(siteProductId,confirmConsolidate=false){return adminApi('erpReleaseLinked',{siteProductId,confirmConsolidate});}
 
+export async function getPromotion(){return adminApi('getPromotion');}
+export async function savePromotion(promotion){return adminApi('savePromotion',{promotion});}
+export async function fetchActivePromotion(){
+ const response=await fetch('/api/promotion',{cache:'no-store'});
+ if(!response.ok)throw new Error('Campanha indisponível.');
+ const data=await response.json();
+ return data.promotion||null;
+}
+export async function uploadPromotionImage(file){
+ const up=await uploadWithSignedUrl(file,'luxdecor-site-assets','promocoes');
+ return up.url;
+}
+
 export async function getAdminSession(){
   try{const r=await adminApi('session');return Boolean(r.authenticated)}catch{return false}
 }
