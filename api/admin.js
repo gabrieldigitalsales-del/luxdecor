@@ -160,10 +160,10 @@ export default async function handler(req,res){
       if(!erpId||erpId.length>128)return json(res,400,{error:'Variação ERP inválida.'});
       const erp=await readErpProducts(sb);
       const item=erp.items.find(p=>String(p.id)===erpId);
-      if(!item||item.active===false||item.archivedAt||item.publishOnSite!==true)return json(res,400,{error:'Somente produtos ativos e liberados no ERP podem entrar na fila.'});
+      if(!item||item.active===false||item.archivedAt)return json(res,400,{error:'Somente produtos ativos do ERP podem ser preparados como rascunho.'});
       const model=String(item.nome_produto||item.name||'');
       const factory=String(item.fornecedor||item.supplier||item.brand||'').trim().toLocaleLowerCase('pt-BR');
-      const candidates=erp.items.filter(p=>p?.id&&p.publishOnSite===true&&p.active!==false&&!p.archivedAt&&
+      const candidates=erp.items.filter(p=>p?.id&&p.active!==false&&!p.archivedAt&&
         sameErpModel(model,p.nome_produto||p.name)&&
         String(p.fornecedor||p.supplier||p.brand||'').trim().toLocaleLowerCase('pt-BR')===factory);
       if(!candidates.length)return json(res,400,{error:'Não foi possível identificar o modelo no ERP. Confira o cadastro.'});
