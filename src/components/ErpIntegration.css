@@ -85,3 +85,19 @@
 /* Variações estritamente vinculadas ao modelo correto */
 .erp-review-model-hint{display:block;grid-column:1/-1;margin-top:7px;font-size:11px;line-height:1.45;color:#697c96}
 .erp-review-model-warning{display:block!important;margin:6px 0;padding:7px 9px;background:#fff5e9;border:1px solid #ecd5b4;border-radius:5px;color:#9a5c1e!important;font-weight:650}
+
+/* Etapa 1/5 — busca assistida e confirmação manual de identidade. */
+.erp-review-add{flex-wrap:wrap;align-items:center}
+.erp-review-add select{flex:1 1 240px}
+.erp-review-add .erp-review-manual-button{background:#fff;color:#173b6e;border:1px solid #a8bdd7;white-space:normal;line-height:1.35;flex:0 1 auto}
+.erp-review-manual-dialog{width:min(100%,680px)!important;max-height:min(85vh,790px)!important;display:flex!important;flex-direction:column;gap:12px}
+.erp-review-manual-dialog h3,.erp-review-manual-dialog p{margin:0}
+.erp-review-manual-results{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:100px;max-height:390px;padding:4px;overscroll-behavior:contain}
+.erp-review-manual-option{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px;border:1px solid #dce5ee;border-radius:6px;background:#f9fbfd}
+.erp-review-manual-option>div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.erp-review-manual-option strong{font-size:12px;color:#213d5e;overflow-wrap:anywhere}
+.erp-review-manual-option small{font-size:11px;color:#69809b}
+.erp-review-manual-option button{border:1px solid #173b6e;border-radius:5px;background:#173b6e;color:#fff;font-size:11px;padding:9px 12px;cursor:pointer;flex-shrink:0}
+.erp-review-manual-confirm{display:flex;gap:11px;align-items:flex-start;padding:13px;border:1px solid #dfc99e;border-radius:6px;background:#fff9ec;color:#674f2e;font-size:12px;line-height:1.5}
+.erp-review-manual-confirm input{width:18px;height:18px;flex:0 0 18px;accent-color:#173b6e;margin-top:2px}
+@media(max-width:600px){.erp-review-add .erp-review-manual-button{width:100%}.erp-review-manual-option{align-items:stretch;flex-direction:column}.erp-review-manual-option button{width:100%}.erp-review-manual-dialog{max-height:90vh!important}}
