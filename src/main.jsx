@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './styles.css';
 import ErpIntegration from './components/ErpIntegration';
+import {catalogDisplayPrice} from './utils/catalogPrice';
 import PromotionManager,{PromotionDialog,PROMOTIONS} from './components/PromotionManager';
 import { supabaseConfigured } from './lib/supabase';
 import {
@@ -161,12 +162,6 @@ function App(){
   {showPromotion&&!admin&&activePromotion&&<PromotionDialog promotion={activePromotion} onClose={closePromotion}/>} 
   {admin&&<AdminPanel products={products} setProducts={setProducts} settings={settings} setSettings={setSettings} onClose={()=>{setAdmin(false);history.replaceState(null,'','/')}}/>}
  </div>
-}
-
-// Preços de produtos vinculados só podem vir das variantes autorizadas do ERP.
-function catalogDisplayPrice(product){
- if(product.erpAvailability?.linked)return product.erpAvailability.sitePriceLabel||'Sob consulta';
- return product.price!=null?product.priceLabel:'Solicitar orçamento';
 }
 
 // Um produto com uma única opção não precisa de seletor: os detalhes ficam no nome.
