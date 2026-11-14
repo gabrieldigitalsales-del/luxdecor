@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {sameErpModel} from '../src/utils/erpModel.js';
+import {catalogDisplayPrice} from '../src/utils/catalogPrice.js';
 import {summarizeLinkedProducts} from '../api/_erp.js';
 
 const fixtures=[
@@ -25,4 +26,7 @@ assert.equal(fixtures.every(x=>x.publishOnSite===false),true,'A liberação não
 const admin=fs.readFileSync(new URL('../api/admin.js',import.meta.url),'utf8');
 assert.ok(!admin.includes("erpItem.publishOnSite!==true)return json(res,400"),'Associação deve ser possível antes de liberação');
 assert.ok(admin.includes("modelNames.length!==1||factories.length!==1"),'Liberação deve validar modelo e fabricante');
-console.log('OK: integração — vincular antes, liberação explícita, isolamento por modelo e variações preservadas.');
+assert.equal(catalogDisplayPrice({price:2999,priceLabel:'R$ 2.999',erpAvailability:{linked:true,options:[]}}),'Sob consulta','Não vazar preço manual quando preço ERP ainda não foi autorizado');
+assert.equal(catalogDisplayPrice({price:2999,priceLabel:'R$ 2.999',erpAvailability:{linked:true,sitePriceLabel:'R$ 3.500'}}),'R$ 3.500');
+assert.equal(catalogDisplayPrice({price:2999,priceLabel:'R$ 2.999'}),'R$ 2.999');
+console.log('OK: integração — aprovação, variações, preço protegido e vínculos preservados.');
