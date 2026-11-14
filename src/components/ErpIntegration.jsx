@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {adminErpIntegrationInfo,adminLinkErp,adminUnlinkErp,adminCreateErpDraft} from '../services/catalog';
 import './ErpIntegration.css';
+import {sameErpModel} from '../utils/erpModel';
 
 const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
 const fmt=value=>Number(value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -70,7 +71,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  return <main className="erp-review">
   <header className="erp-review-header">
    <div><span className="erp-review-overline">Painel administrativo / Catálogo</span><h2>Integração com o ERP</h2>
-   <p>Confira cada variação de estoque e aprove seu vínculo com um produto do catálogo. Vincular não altera fotos ou descrições. Apenas itens liberados no ERP podem fornecer disponibilidade e preço.</p></div>
+   <p>Cada produto mostra somente as variações de seu próprio modelo. A associação não altera fotos ou descrições; preço e disponibilidade dependem da liberação no ERP.</p></div>
    <button type="button" className="erp-review-refresh" onClick={()=>load(false)} disabled={refreshing||busy}>{refreshing?'Atualizando...':'Atualizar informações'}</button>
   </header>
   {error&&<p className="erp-review-error" role="alert">{error}</p>}
@@ -96,25 +97,26 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   <div className="erp-review-list">
    {visible.map(p=>{
     const links=linksByProduct.get(String(p.id))||[];
-    const candidates=availableErp;
+    const candidates=availableErp.filter(x=>x.publishOnSite===true&&sameErpModel(p.name,x.modelName||x.name));
     const selected=selection[p.id]||'';
-    const chosen=erpMap.get(String(selected));
+    const chosen=candidates.find(x=>String(x.id)===String(selected));
     return <article className="erp-review-card" key={p.id}>
      <div className="erp-review-product">{p.image&&<img src={p.image} alt="" />}<div><strong>{p.name}</strong><small>{p.category||'Produto do catálogo'}</small><span className={links.length?'erp-review-pill is-linked':'erp-review-pill'}>{links.length?links.length+' variação(ões) associada(s)':'Aguardando associação'}</span></div></div>
      <div className="erp-review-detail">
       <div className="erp-review-linked">{links.length?links.map(l=>{
        const item=erpMap.get(String(l.erp_product_id));
        return <div className="erp-review-link" key={l.erp_product_id}>
-        <div><strong>{item?.name||l.erp_product_id}</strong><small>{!item?'Variação indisponível no retorno do ERP':item.publishOnSite?'Liberada no ERP':'Não liberada no ERP'}{item&&' · '+(item.unknown?'Estoque a conferir':item.stock+' un.')}{item?.publishOnSite&&Number(item.price)>0?' · '+fmt(item.price):''}</small></div>
+        <div><strong>{item?.name||l.erp_product_id}</strong>{item&&!sameErpModel(p.name,item.modelName||item.name)&&<small className="erp-review-model-warning">Vínculo antigo com outro modelo. Confira antes de manter.</small>}<small>{!item?'Variação indisponível no retorno do ERP':item.publishOnSite?'Liberada no ERP':'Não liberada no ERP'}{item&&' · '+(item.unknown?'Estoque a conferir':item.stock+' un.')}{item?.publishOnSite&&Number(item.price)>0?' · '+fmt(item.price):''}</small></div>
         <button type="button" disabled={busy} onClick={()=>setApproval({siteId:p.id,erpId:l.erp_product_id,remove:true,siteName:p.name,erpName:item?.name||l.erp_product_id})}>Desvincular</button>
        </div>;
       }):<p className="erp-review-muted">Nenhuma variação associada. Escolha abaixo uma variação correspondente.</p>}</div>
       <div className="erp-review-add">
-       <select aria-label={'Variação do ERP para '+p.name} value={selected} onChange={e=>setSelection(v=>({...v,[p.id]:e.target.value}))}>
-        <option value="">Selecionar variação do ERP</option>
+       <select aria-label={'Variação do ERP para '+p.name} value={chosen?selected:''} disabled={busy||candidates.length===0} onChange={e=>setSelection(v=>({...v,[p.id]:e.target.value}))}>
+        <option value="">{candidates.length?'Selecionar variação deste modelo':'Nenhuma variação liberada deste modelo'}</option>
         {candidates.filter(x=>!links.some(l=>String(l.erp_product_id)===String(x.id))).map(x=><option key={x.id} value={x.id}>{x.name} · {x.publishOnSite?'Liberada':'Não liberada'} · {x.unknown?'A conferir':x.stock+' un.'}</option>)}
        </select>
        <button type="button" disabled={!chosen||busy} onClick={()=>setApproval({siteId:p.id,erpId:selected,siteName:p.name,erpName:chosen?.name,publishOnSite:chosen?.publishOnSite,price:chosen?.price})}>Revisar vínculo</button>
+       {!candidates.length&&<small className="erp-review-model-hint">Somente variações do modelo “{p.name}” aparecem aqui. Confira o nome cadastrado no ERP se não houver opções.</small>}
       </div>
      </div>
     </article>;
