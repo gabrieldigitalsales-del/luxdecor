@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {adminErpIntegrationInfo,adminLinkErp,adminUnlinkErp,adminCreateErpDraft} from '../services/catalog';
 import './ErpIntegration.css';
-import {sameErpModel} from '../utils/erpModel';
+import {sameErpModel,modelTokens} from '../utils/erpModel';
 
 const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
 const fmt=value=>Number(value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -37,6 +37,15 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  const linkedIds=useMemo(()=>new Set((data.links||[]).map(x=>String(x.erp_product_id))),[data.links]);
  const availableErp=useMemo(()=>(data.erp||[]).filter(x=>!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
  const waiting=useMemo(()=>(data.erp||[]).filter(x=>x.publishOnSite&&!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
+ const waitingGroups=useMemo(()=>{
+  const groups=new Map();
+  for(const item of waiting){
+   const key=[norm(item.supplier),modelTokens(item.modelName||item.name)[0]||String(item.id)].join('::');
+   if(!groups.has(key))groups.set(key,{...item,variants:[]});
+   groups.get(key).variants.push(item);
+  }
+  return [...groups.values()];
+ },[waiting]);
  const filtered=useMemo(()=>products.filter(p=>{
   const links=linksByProduct.get(String(p.id))||[];
   const match=norm([p.name,p.category,...links.map(x=>erpMap.get(String(x.erp_product_id))?.name)].join(' ')).includes(norm(query));
@@ -80,13 +89,13 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
    <div><strong>{products.length}</strong><span>Produtos no site</span></div>
    <div><strong>{(data.erp||[]).length}</strong><span>Variações no ERP</span></div>
    <div><strong>{linked}</strong><span>Vínculos aprovados</span></div>
-   <div><strong>{waiting.length}</strong><span>Liberadas sem vínculo</span></div>
+   <div><strong>{waitingGroups.length}</strong><span>Modelos aguardando revisão</span></div>
   </div>
   {!loading&&waiting.length>0&&<section className="erp-review-pending">
    <div><strong>Fila de aprovação do ERP</strong><p>Itens liberados no ERP que ainda não pertencem a um produto do site. Associe uma variação a um produto existente abaixo ou crie um rascunho para preparar fotos e publicação.</p></div>
-   <div className="erp-review-queue">{waiting.map(x=><div key={x.id} className="erp-review-queue-row">
-    <div><strong>{x.name}</strong><small>{x.unknown?'Estoque a conferir':x.stock+' un.'} · {Number(x.price)>0?fmt(x.price):'Preço sob consulta'}</small></div>
-    <button type="button" disabled={busy} onClick={()=>{setNewDraft(x);setDraftName(String(x.name||'').split(' · ')[0]);setDraftCategory(/sof[aá]|chaise/i.test(x.name)?'Sofás':'Outros');setDraftDescription('')}}>Criar rascunho</button>
+   <div className="erp-review-queue">{waitingGroups.map(x=><div key={x.id} className="erp-review-queue-row">
+    <div><strong>{x.modelName||x.name}</strong><small>{x.supplier?x.supplier+' · ':''}{x.variants.length} {x.variants.length===1?'variação':'variações'} do mesmo modelo</small></div>
+    <button type="button" disabled={busy} onClick={()=>{setNewDraft(x);setDraftName(String(x.name||'').split(' · ')[0]);setDraftCategory(/sof[aá]|chaise/i.test(x.name)?'Sofás':'Outros');setDraftDescription('')}}>{x.variants.length===1?'Criar rascunho':'Importar modelo'}</button>
    </div>)}</div>
   </section>}
   <div className="erp-review-controls">
@@ -128,6 +137,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   {newDraft&&<div className="admin-editor-backdrop erp-review-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setNewDraft(null)}}>
    <section className="admin-editor-v2 erp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-draft-title">
     <h3 id="erp-draft-title">Preparar produto do ERP</h3>
+    <p className="erp-review-dialog-note">{newDraft.variants?.length||1} variação(ões) do mesmo modelo serão reunidas em um único produto.</p>
     <p className="erp-review-dialog-note">Será criado um rascunho oculto. A publicação só acontece depois que você editar e ativar o produto na aba Produtos.</p>
     <label className="erp-review-form-field">Nome do produto<input maxLength={160} value={draftName} onChange={e=>setDraftName(e.target.value)}/></label>
     <label className="erp-review-form-field">Categoria<select value={draftCategory} onChange={e=>setDraftCategory(e.target.value)}><option>Sofás</option><option>Poltronas</option><option>Mesas</option><option>Cadeiras</option><option>Sala de jantar</option><option>Área externa</option><option>Banquetas</option><option>Aparadores</option><option>Espelhos</option><option>Outros</option></select></label>
