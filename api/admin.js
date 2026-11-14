@@ -100,7 +100,9 @@ export default async function handler(req,res){
       const {data:site,error:siteError}=await sb.from('luxdecor_products').select('id,name').eq('id',siteId).maybeSingle();
       if(siteError)throw siteError;
       if(!site)return json(res,404,{error:'Produto não encontrado no site.'});
-      if(!sameErpModel(site.name,erpItem.nome_produto||erpItem.name))return json(res,400,{error:'Esta variação pertence a outro modelo. Escolha uma variação do mesmo produto.'});
+      const matched=sameErpModel(site.name,erpItem.nome_produto||erpItem.name);
+      const manualConfirmed=body.manual===true&&body.confirmedSameModel===true&&String(body.confirmedSiteName||'')===String(site.name);
+      if(!matched&&!manualConfirmed)return json(res,400,{error:'Os modelos possuem nomes diferentes. Use a busca manual e confirme expressamente que são o mesmo produto.'});
       const {data:elsewhere,error:lookupError}=await sb.from('luxdecor_erp_product_links').select('site_product_id').eq('erp_product_id',erpId);
       if(lookupError)throw lookupError;
       if((elsewhere||[]).some(link=>String(link.site_product_id)!==siteId))return json(res,409,{error:'Esta variação já está associada a outro produto.'});
