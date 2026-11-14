@@ -170,7 +170,9 @@ export async function saveProduct(product,newFiles=[]){
   const requestedPublish=product.isActive!==false;
   // Novos rascunhos com fotos ainda não enviadas precisam ser criados ocultos:
   // só publicamos após todas as imagens e a capa estarem salvas.
-  const stageHidden=requestedPublish&&newFiles.length>0&&(!product.id||product.isActive===false);
+  // A marcação de Publicado altera o estado editável, mas o registro original
+  // ainda pode estar oculto. Nesse caso, concluir upload antes de publicar.
+  const stageHidden=requestedPublish&&newFiles.length>0&&(!product.id||product.wasHidden===true);
   const staged={...product,isActive:stageHidden?false:product.isActive,image:undefined,images:undefined};
   const {id}=await adminApi('saveProduct',{product:staged});
   const pendingBlobs=(product.images||[]).filter(x=>String(x).startsWith('blob:'));
