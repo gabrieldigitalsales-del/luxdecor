@@ -61,11 +61,12 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   if(!approval)return;
   setBusy(true);setError('');setNotice('');
   try{
-   if(approval.release){await adminReleaseErpLinked(approval.siteId);await onCatalogChange();}
+   let publicationState=null;
+   if(approval.release){const result=await adminReleaseErpLinked(approval.siteId);publicationState=result.sitePublished===true;await onCatalogChange();}
    else if(approval.remove)await adminUnlinkErp(approval.siteId,approval.erpId);
    else await adminLinkErp(approval.siteId,approval.erpId,approval.manual?{manual:true,confirmedSameModel:manualVerified,confirmedSiteName:approval.siteName}:{});
    setApproval(null);setSelection(v=>({...v,[approval.siteId]:''}));
-   await load(true);setNotice(approval.release?'Variações liberadas no ERP. Verifique o produto no site.':approval.remove?'Vínculo removido.':'Variação vinculada com sucesso.');
+   await load(true);setNotice(approval.release?(publicationState?'Variações liberadas. Confira medidas e acabamentos no site.':'Variações liberadas, mas este produto ainda está oculto. Abra Produtos, adicione uma foto e ative “Produto publicado” para exibi-lo.'):approval.remove?'Vínculo removido.':'Variação vinculada com sucesso.');
   }catch(e){setError(e.message)}finally{setBusy(false)}
  };
  const createDraft=async()=>{
