@@ -18,6 +18,18 @@ export function summarizeLinkedProducts(items,links){
   const p=byId.get(String(row.erp_product_id));if(!p||p.publishOnSite!==true||p.active===false||p.archivedAt)continue;
   const id=String(row.site_product_id), record=grouped[id]||(grouped[id]={siteProductId:id,linked:true,quantity:0,knownVariants:0,unknownVariants:0,variants:0});
   record.variants++;
+  const rawPrice=p.preco_final??p.price;
+  const optionPrice=rawPrice===null||rawPrice===undefined||rawPrice===''?null:Number(rawPrice);
+  const label=String(p.sizeLabel||p.variant||p.variante||p.width||'').trim();
+  const color=String(p.color||p.cor_acabamento||p.finish||'').trim();
+  const sku=String(p.sku||p.sku_ref||'').trim();
+  (record.options||(record.options=[])).push({
+   id:String(p.id),size:label,color,sku,
+   name:[label,color].filter(Boolean).join(' · ')||'Variação padrão',
+   price:Number.isFinite(optionPrice)&&optionPrice>0?Number(optionPrice.toFixed(2)):null,
+   stock:Math.max(0,Number(p.stock)||0),
+   unknown:/quantidade n[aã]o informada/i.test(String(p.observacoes||p.notes||'')),
+  });
   const notes=String(p.observacoes||p.notes||'');
   const known=!/quantidade n[aã]o informada/i.test(notes)&&Number.isFinite(Number(p.stock));
   if(known){record.quantity+=Math.max(0,Number(p.stock)||0);record.knownVariants++}
@@ -33,6 +45,7 @@ export function summarizeLinkedProducts(items,links){
   }
  }
  for(const record of Object.values(grouped)){
+  record.options=(record.options||[]).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR',{numeric:true}));
   const prices=record.enabledPrices||[];
   // Para não informar preços incorretos, todas as variantes autorizadas devem ter preço.
   if(record.enabledVariants>0 && prices.length===record.enabledVariants){
