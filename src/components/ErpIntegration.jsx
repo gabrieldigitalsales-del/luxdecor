@@ -38,6 +38,8 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  const linkedIds=useMemo(()=>new Set((data.links||[]).map(x=>String(x.erp_product_id))),[data.links]);
  const availableErp=useMemo(()=>(data.erp||[]).filter(x=>!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
  const waiting=useMemo(()=>(data.erp||[]).filter(x=>x.publishOnSite&&!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
+ const notReleased=useMemo(()=>(data.erp||[]).filter(x=>!x.publishOnSite),[data.erp]);
+ const approvedLinks=useMemo(()=>(data.links||[]).filter(link=>erpMap.get(String(link.erp_product_id))?.publishOnSite===true).length,[data.links,erpMap]);
  const waitingGroups=useMemo(()=>{
   const groups=new Map();
   for(const item of waiting){
@@ -90,9 +92,14 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   <div className="erp-review-metrics" aria-label="Resumo da integração">
    <div><strong>{products.length}</strong><span>Produtos no site</span></div>
    <div><strong>{(data.erp||[]).length}</strong><span>Variações no ERP</span></div>
-   <div><strong>{linked}</strong><span>Vínculos aprovados</span></div>
-   <div><strong>{waitingGroups.length}</strong><span>Modelos aguardando revisão</span></div>
+   <div><strong>{linked}</strong><span>Vínculos cadastrados</span></div>
+   <div><strong>{approvedLinks}</strong><span>Vínculos liberados no ERP</span></div>
+   <div><strong>{notReleased.length}</strong><span>Variações aguardando liberação</span></div>
   </div>
+  {!loading&&notReleased.length>0&&<section className="erp-review-permissions" role="status">
+   <strong>{notReleased.length} variações ainda não estão liberadas para o site</strong>
+   <p>O estoque contém essas variações, mas elas precisam da marcação “Exibir no site” no cadastro do ERP. O vínculo existente, sozinho, não libera preço e disponibilidade. Não alteramos essas permissões automaticamente.</p>
+  </section>}
   {!loading&&waiting.length>0&&<section className="erp-review-pending">
    <div><strong>Fila de aprovação do ERP</strong><p>Itens liberados no ERP que ainda não pertencem a um produto do site. Associe uma variação a um produto existente abaixo ou crie um rascunho para preparar fotos e publicação.</p></div>
    <div className="erp-review-queue">{waitingGroups.map(x=><div key={x.id} className="erp-review-queue-row">
