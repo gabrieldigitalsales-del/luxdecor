@@ -67,6 +67,7 @@ export async function adminErpIntegrationInfo(){return adminApi('erpIntegrationI
 export async function adminLinkErp(siteProductId,erpProductId,options={}){return adminApi('erpLink',{siteProductId,erpProductId,...options});}
 export async function adminUnlinkErp(siteProductId,erpProductId){return adminApi('erpUnlink',{siteProductId,erpProductId});}
 export async function adminCreateErpDraft(erpProductId,product){return adminApi('erpCreateDraft',{erpProductId,...product});}
+export async function adminReleaseErpLinked(siteProductId,confirmConsolidate=false){return adminApi('erpReleaseLinked',{siteProductId,confirmConsolidate});}
 
 export async function getAdminSession(){
   try{const r=await adminApi('session');return Boolean(r.authenticated)}catch{return false}
