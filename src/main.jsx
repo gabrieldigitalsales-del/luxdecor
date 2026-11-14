@@ -125,7 +125,55 @@ function App(){
  </div>
 }
 
-function ProductModal({p,onClose,wa}){const [img,setImg]=useState(0);const [zoom,setZoom]=useState(false);useEffect(()=>{const handle=e=>{if(e.key==='Escape'){if(zoom)setZoom(false);else onClose()}if(e.key==='ArrowRight')setImg(i=>(i+1)%(p.images?.length||1));if(e.key==='ArrowLeft')setImg(i=>(i-1+(p.images?.length||1))%(p.images?.length||1))};document.addEventListener('keydown',handle);document.body.style.overflow='hidden';return()=>{document.removeEventListener('keydown',handle);document.body.style.overflow=''}},[zoom,p,onClose]);return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="product-modal"><button className="modal-close" onClick={onClose}>×</button><div className="modal-gallery"><button className="modal-zoom-trigger" onClick={()=>setZoom(true)} aria-label="Ampliar fotografia"><img className="modal-main-img" src={p.images?.[img]||p.image} alt={p.name}/><span>Ampliar imagem +</span></button>{p.images.length>1&&<div className="thumbs">{p.images.map((x,i)=><button className={i===img?'active':''} onClick={()=>setImg(i)} key={x+i}><img src={x} alt=""/></button>)}</div>}</div><div className="modal-copy"><div className="eyebrow">{p.category}</div><h2>{p.name}</h2>{p.erpAvailability?.linked&&<p className="erp-availability">{p.erpAvailability.unknownVariants?'Disponibilidade sob consulta':p.erpAvailability.quantity>0?'Disponível na loja':'Consulte a disponibilidade'}</p>}<p className="modal-desc">{p.desc}</p>{wa("teste")?<a className="modal-price price-whatsapp" href={wa(`Olá! Gostaria de consultar o valor de ${p.name} na Lux Decor.`)} target="_blank" rel="noopener noreferrer">{p.erpAvailability?.sitePriceLabel || (p.price!=null ? p.priceLabel : 'Solicitar orçamento')}</a>:<div className="modal-price" title="Configure o WhatsApp no painel da loja">{p.erpAvailability?.sitePriceLabel || (p.price!=null ? p.priceLabel : 'Solicitar orçamento')}</div>}<div className="feature-list">{p.features.map(x=><div key={x}><span>✓</span>{x}</div>)}</div>{wa('teste')?<a className="wa-product" href={wa(`Olá! Estou vendo o produto ${p.name} no site da Lux Decor e gostaria de mais informações.`)} target="_blank" rel="noopener noreferrer"><WhatsAppIcon/> Quero este produto</a>:<span className="wa-product disabled" aria-disabled="true">Atendimento temporariamente indisponível</span>}<small>Você será atendido diretamente pela equipe Lux Decor.</small></div></div>{zoom&&<div className="image-lightbox" onClick={()=>setZoom(false)} role="presentation"><button onClick={()=>setZoom(false)} aria-label="Fechar imagem">×</button><img src={p.images?.[img]||p.image} alt={p.name}/></div>}</div>}
+function ProductModal({p,onClose,wa}){
+ const [img,setImg]=useState(0),[zoom,setZoom]=useState(false),[selectedId,setSelectedId]=useState('');
+ const variations=p.erpAvailability?.options||[];
+ const selectedVariant=variations.find(x=>String(x.id)===selectedId)||null;
+ const variantLabel=selectedVariant?[p.name,selectedVariant.size,selectedVariant.color,selectedVariant.sku].filter(Boolean).join(' · '):p.name;
+ const displayPrice=selectedVariant?(selectedVariant.price!=null?Number(selectedVariant.price).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Sob consulta'):(p.erpAvailability?.sitePriceLabel||(p.price!=null?p.priceLabel:'Solicitar orçamento'));
+ const variantText=selectedVariant?`Variação: ${[selectedVariant.size,selectedVariant.color,selectedVariant.sku].filter(Boolean).join(' · ')||selectedVariant.name}. ${selectedVariant.unknown?'Estoque sob consulta':selectedVariant.stock>0?'Disponível em estoque':'Disponibilidade sob consulta'}.`:'';
+ useEffect(()=>{
+  const handle=e=>{
+   if(e.key==='Escape'){if(zoom)setZoom(false);else onClose()}
+   if(e.key==='ArrowRight')setImg(i=>(i+1)%(p.images?.length||1));
+   if(e.key==='ArrowLeft')setImg(i=>(i-1+(p.images?.length||1))%(p.images?.length||1));
+  };
+  document.addEventListener('keydown',handle);document.body.style.overflow='hidden';
+  return()=>{document.removeEventListener('keydown',handle);document.body.style.overflow=''};
+ },[zoom,p,onClose]);
+ return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
+  <div className="product-modal">
+   <button className="modal-close" onClick={onClose} aria-label="Fechar detalhes">×</button>
+   <div className="modal-gallery">
+    <button className="modal-zoom-trigger" onClick={()=>setZoom(true)} aria-label="Ampliar fotografia"><img className="modal-main-img" src={p.images?.[img]||p.image} alt={p.name}/><span>Ampliar imagem +</span></button>
+    {(p.images||[]).length>1&&<div className="thumbs">{p.images.map((x,i)=><button className={i===img?'active':''} onClick={()=>setImg(i)} key={x+i}><img src={x} alt=""/></button>)}</div>}
+   </div>
+   <div className="modal-copy lux-product-details">
+    <div className="eyebrow">{p.category}</div><h2>{p.name}</h2>
+    {p.erpAvailability?.linked&&<p className="erp-availability">{p.erpAvailability.unknownVariants?'Disponibilidade sob consulta':p.erpAvailability.quantity>0?'Disponível na loja':'Consulte a disponibilidade'}</p>}
+    <p className="modal-desc">{p.desc}</p>
+    {variations.length>0&&<div className="lux-product-variants">
+     <div className="lux-product-variants-head"><strong>Variações disponíveis</strong><small>{variations.length} {variations.length===1?'opção':'opções'} para este modelo</small></div>
+     <label htmlFor="lux-product-variant-select">Escolha a medida, cor ou acabamento</label>
+     <select id="lux-product-variant-select" value={selectedId} onChange={e=>setSelectedId(e.target.value)}>
+      <option value="">Selecione uma variação para consultar</option>
+      {variations.map(v=><option key={v.id} value={v.id}>{[v.size,v.color,v.sku].filter(Boolean).join(' · ')||v.name}</option>)}
+     </select>
+     {selectedVariant&&<div className="lux-product-variant-summary">
+      <b>{displayPrice}</b>
+      <span>{selectedVariant.unknown?'Disponibilidade sob consulta':selectedVariant.stock>0?'Disponível na loja':'Consulte a disponibilidade'}</span>
+      {selectedVariant.sku&&<small>Referência: {selectedVariant.sku}</small>}
+     </div>}
+    </div>}
+    {wa('teste')?<a className="modal-price price-whatsapp" href={wa(`Olá! Gostaria de consultar o valor de ${variantLabel} na Lux Decor. ${variantText}`)} target="_blank" rel="noopener noreferrer">{displayPrice}</a>:<div className="modal-price" title="Configure o WhatsApp no painel da loja">{displayPrice}</div>}
+    <div className="feature-list">{(p.features||[]).map(x=><div key={x}><span>✓</span>{x}</div>)}</div>
+    {wa('teste')?<a className="wa-product" href={wa(`Olá! Estou vendo ${variantLabel} no site da Lux Decor. ${variantText} Gostaria de mais informações.`)} target="_blank" rel="noopener noreferrer"><WhatsAppIcon/> Quero este produto</a>:<span className="wa-product disabled" aria-disabled="true">Atendimento temporariamente indisponível</span>}
+    <small>Você será atendido diretamente pela equipe Lux Decor.</small>
+   </div>
+  </div>
+  {zoom&&<div className="image-lightbox" onClick={()=>setZoom(false)} role="presentation"><button onClick={()=>setZoom(false)} aria-label="Fechar imagem">×</button><img src={p.images?.[img]||p.image} alt={p.name}/></div>}
+ </div>;
+}
 
 function AdminPanel({products,setProducts,settings,setSettings,onClose}){
  const CATEGORIES=['Sofás','Mesas','Cadeiras','Sala de jantar','Área externa','Banquetas','Aparadores','Espelhos','Outros'];
