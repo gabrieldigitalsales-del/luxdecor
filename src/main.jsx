@@ -153,6 +153,20 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
  function openNew(){setDraft(blank());setPendingFiles([]);setAiSuggestion(null);setEditorTab('photos')}
  function openEdit(p){setDraft({...p,images:[...(p.images||[])]});setPendingFiles([]);setAiSuggestion(null);setEditorTab('basic')}
  function closeEditor(){pendingFiles.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));setDraft(null);setPendingFiles([]);setAiSuggestion(null)}
+ useEffect(()=>{
+  const closeOnEscape=(event)=>{
+   if(event.key!=='Escape'||event.defaultPrevented||event.isComposing)return;
+   // A janela de aprovação da integração deve receber o Esc antes do painel.
+   if(document.querySelector('.erp-review-dialog[aria-modal="true"]'))return;
+   // Não interromper uma gravação ou upload em andamento.
+   if(busy)return;
+   if(draft){event.preventDefault();closeEditor();return;}
+   event.preventDefault();onClose();
+  };
+  window.addEventListener('keydown',closeOnEscape);
+  return()=>window.removeEventListener('keydown',closeOnEscape);
+ },[draft,busy,onClose,pendingFiles]);
+
  async function analyzeFile(file){if(!file)return;if(!ollamaState.online){setAiSuggestion({error:'IA LOCAL: OFF. Ligue o Ollama no seu PC e clique em Testar conexão nas configurações.'});return}setAnalyzing(true);setAiSuggestion(null);try{const r=await classifyProductImage(file,{url:ollama.url,model:ollama.model});const sug=r?.suggestion||null;setAiSuggestion(sug);if(sug){setDraft(d=>({...d,category:d.category==='Outros'&&sug.category?sug.category:d.category,name:d.name||sug.name||'',tag:d.tag==='Novo'&&sug.tag?sug.tag:d.tag,desc:d.desc||sug.description||'',features:(d.features||[]).length?d.features:(sug.features||[])}));}}catch(e){setAiSuggestion({error:e.message});setOllamaState(x=>({...x,online:false,error:e.message}))}finally{setAnalyzing(false)}}
  function addFiles(fileList){const arr=[...fileList].filter(f=>f.type.startsWith('image/'));if(!arr.length)return;const entries=arr.map(file=>({file,preview:URL.createObjectURL(file),id:`pending-${crypto.randomUUID?.()||Math.random()}`}));setPendingFiles(x=>[...x,...entries]);setDraft(d=>{const newImgs=entries.map(x=>x.preview);return {...d,image:d.image||newImgs[0]||'',images:[...(d.images||[]),...newImgs]}});if(!draft?.name&&ollamaState.online)analyzeFile(arr[0]);}
  function fileChange(e){addFiles(e.target.files||[]);e.target.value=''}
