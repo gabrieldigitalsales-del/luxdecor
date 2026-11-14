@@ -81,3 +81,7 @@
  .erp-review-metrics strong{font-size:22px}
  .erp-review-dialog.admin-editor-v2{padding:18px;max-height:90vh}
 }
+
+/* Variações estritamente vinculadas ao modelo correto */
+.erp-review-model-hint{display:block;grid-column:1/-1;margin-top:7px;font-size:11px;line-height:1.45;color:#697c96}
+.erp-review-model-warning{display:block!important;margin:6px 0;padding:7px 9px;background:#fff5e9;border:1px solid #ecd5b4;border-radius:5px;color:#9a5c1e!important;font-weight:650}
