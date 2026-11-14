@@ -1,3 +1,4 @@
+import {shouldStageProductAsHidden} from '../utils/productPublication';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 
 const toProduct = (row) => {
@@ -172,7 +173,7 @@ export async function saveProduct(product,newFiles=[]){
   // só publicamos após todas as imagens e a capa estarem salvas.
   // A marcação de Publicado altera o estado editável, mas o registro original
   // ainda pode estar oculto. Nesse caso, concluir upload antes de publicar.
-  const stageHidden=requestedPublish&&newFiles.length>0&&(!product.id||product.wasHidden===true);
+  const stageHidden=shouldStageProductAsHidden(product,newFiles);
   const staged={...product,isActive:stageHidden?false:product.isActive,image:undefined,images:undefined};
   const {id}=await adminApi('saveProduct',{product:staged});
   const pendingBlobs=(product.images||[]).filter(x=>String(x).startsWith('blob:'));
