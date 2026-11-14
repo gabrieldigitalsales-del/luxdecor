@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {adminErpIntegrationInfo,adminLinkErp,adminUnlinkErp,adminCreateErpDraft} from '../services/catalog';
 import './ErpIntegration.css';
 
@@ -6,44 +6,75 @@ const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,
 const fmt=value=>Number(value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEditDraft=()=>{}}){
  const [data,setData]=useState({erp:[],links:[],revision:0});
- const [loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- const [query,setQuery]=useState(''),[status,setStatus]=useState('all');
+ const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ const requestRef=useRef(null),mountedRef=useRef(true);
+ const [query,setQuery]=useState(''),[status,setStatus]=useState('all'),[page,setPage]=useState(1);
  const [selection,setSelection]=useState({}),[approval,setApproval]=useState(null);
  const [newDraft,setNewDraft]=useState(null),[draftName,setDraftName]=useState(''),[draftCategory,setDraftCategory]=useState('Sofás'),[draftDescription,setDraftDescription]=useState('');
- const load=async()=>{setError('');setLoading(true);try{setData(await adminErpIntegrationInfo())}catch(e){setError(e.message)}finally{setLoading(false)}};
- useEffect(()=>{load();const timer=setInterval(()=>{if(!document.hidden)adminErpIntegrationInfo().then(setData).catch(()=>{})},60000);return()=>clearInterval(timer)},[]);
+ const load=useCallback(async(silent=false)=>{
+  if(requestRef.current)return requestRef.current;
+  if(!silent)setRefreshing(true);
+  const req=adminErpIntegrationInfo().then(result=>{
+   if(mountedRef.current){setData(result);setError('');setLoading(false)}
+   return result;
+  }).catch(err=>{if(mountedRef.current){setError(err.message||'Falha ao atualizar ERP');setLoading(false)}return null})
+    .finally(()=>{requestRef.current=null;if(mountedRef.current)setRefreshing(false)});
+  requestRef.current=req;return req;
+ },[]);
+ useEffect(()=>{
+  mountedRef.current=true;load(true);
+  const timer=setInterval(()=>{if(!document.hidden&&!busy&&!approval&&!newDraft)load(true)},120000);
+  return()=>{mountedRef.current=false;clearInterval(timer)};
+ },[load,busy,approval,newDraft]);
+ useEffect(()=>{setPage(1)},[query,status]);
  const erpMap=useMemo(()=>new Map((data.erp||[]).map(x=>[String(x.id),x])),[data.erp]);
+ const linksByProduct=useMemo(()=>{
+  const index=new Map();
+  for(const link of data.links||[]){const id=String(link.site_product_id);if(!index.has(id))index.set(id,[]);index.get(id).push(link)}
+  return index;
+ },[data.links]);
  const linkedIds=useMemo(()=>new Set((data.links||[]).map(x=>String(x.erp_product_id))),[data.links]);
+ const availableErp=useMemo(()=>(data.erp||[]).filter(x=>!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
  const waiting=useMemo(()=>(data.erp||[]).filter(x=>x.publishOnSite&&!linkedIds.has(String(x.id))),[data.erp,linkedIds]);
  const filtered=useMemo(()=>products.filter(p=>{
-  const links=(data.links||[]).filter(x=>String(x.site_product_id)===String(p.id));
+  const links=linksByProduct.get(String(p.id))||[];
   const match=norm([p.name,p.category,...links.map(x=>erpMap.get(String(x.erp_product_id))?.name)].join(' ')).includes(norm(query));
   return match&&(status==='all'||(status==='linked'&&links.length>0)||(status==='pending'&&links.length===0));
- }),[products,data.links,erpMap,query,status]);
+ }),[products,linksByProduct,erpMap,query,status]);
+ const pageSize=10;
+ const pages=Math.max(1,Math.ceil(filtered.length/pageSize));
+ const visible=filtered.slice((Math.min(page,pages)-1)*pageSize,Math.min(page,pages)*pageSize);
  const approve=async()=>{
   if(!approval)return;
-  setBusy(true);setError('');
+  setBusy(true);setError('');setNotice('');
   try{
    if(approval.remove)await adminUnlinkErp(approval.siteId,approval.erpId);
    else await adminLinkErp(approval.siteId,approval.erpId);
    setApproval(null);setSelection(v=>({...v,[approval.siteId]:''}));
-   await load();
+   await load(true);setNotice(approval.remove?'Vínculo removido.':'Variação vinculada com sucesso.');
   }catch(e){setError(e.message)}finally{setBusy(false)}
  };
  const createDraft=async()=>{
   if(!newDraft)return;
   setBusy(true);setError('');
-  try{const result=await adminCreateErpDraft(newDraft.id,{name:draftName,category:draftCategory,description:draftDescription});setNewDraft(null);await onCatalogChange();await load();onEditDraft(result.id)}
+  try{const result=await adminCreateErpDraft(newDraft.id,{name:draftName,category:draftCategory,description:draftDescription});setNewDraft(null);await onCatalogChange();await load(true);onEditDraft(result.id)}
   catch(e){setError(e.message)}finally{setBusy(false)}
  };
+ useEffect(()=>{
+  if(!newDraft&&!approval)return;
+  const onKey=e=>{if(e.key==='Escape'&&!busy){setApproval(null);setNewDraft(null)}};
+  window.addEventListener('keydown',onKey);
+  return()=>window.removeEventListener('keydown',onKey);
+ },[newDraft,approval,busy]);
  const linked=(data.links||[]).length;
  return <main className="erp-review">
   <header className="erp-review-header">
    <div><span className="erp-review-overline">Painel administrativo / Catálogo</span><h2>Integração com o ERP</h2>
    <p>Confira cada variação de estoque e aprove seu vínculo com um produto do catálogo. Vincular não altera fotos ou descrições. Apenas itens liberados no ERP podem fornecer disponibilidade e preço.</p></div>
-   <button type="button" className="erp-review-refresh" onClick={load} disabled={loading||busy}>{loading?'Atualizando...':'Atualizar informações'}</button>
+   <button type="button" className="erp-review-refresh" onClick={()=>load(false)} disabled={refreshing||busy}>{refreshing?'Atualizando...':'Atualizar informações'}</button>
   </header>
   {error&&<p className="erp-review-error" role="alert">{error}</p>}
+  {notice&&<p className="erp-review-notice" role="status">{notice}</p>}
   <div className="erp-review-metrics" aria-label="Resumo da integração">
    <div><strong>{products.length}</strong><span>Produtos no site</span></div>
    <div><strong>{(data.erp||[]).length}</strong><span>Variações no ERP</span></div>
@@ -63,9 +94,9 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   </div>
   {loading?<p className="erp-review-state">Consultando o ERP...</p>:
   <div className="erp-review-list">
-   {filtered.map(p=>{
-    const links=(data.links||[]).filter(x=>String(x.site_product_id)===String(p.id));
-    const candidates=(data.erp||[]).filter(x=>!linkedIds.has(String(x.id))||links.some(l=>String(l.erp_product_id)===String(x.id)));
+   {visible.map(p=>{
+    const links=linksByProduct.get(String(p.id))||[];
+    const candidates=availableErp;
     const selected=selection[p.id]||'';
     const chosen=erpMap.get(String(selected));
     return <article className="erp-review-card" key={p.id}>
@@ -90,9 +121,10 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
    })}
    {!filtered.length&&<p className="erp-review-state">Nenhum produto encontrado. Experimente outro termo de busca.</p>}
   </div>}
+  {!loading&&pages>1&&<div className="erp-review-pagination"><span>{filtered.length} produtos encontrados · Página {Math.min(page,pages)} de {pages}</span><div><button type="button" disabled={page<=1} onClick={()=>setPage(n=>n-1)}>Anterior</button><button type="button" disabled={page>=pages} onClick={()=>setPage(n=>n+1)}>Próxima</button></div></div>}
   <p className="erp-review-footnote">A fila é atualizada ao consultar o ERP. Novos produtos entram como rascunho oculto: adicione imagens e confira os detalhes na aba Produtos antes de publicar. A liberação “Exibir no site” continua controlada no ERP.</p>
-  {newDraft&&<div className="erp-review-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setNewDraft(null)}}>
-   <section className="erp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-draft-title">
+  {newDraft&&<div className="admin-editor-backdrop erp-review-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setNewDraft(null)}}>
+   <section className="admin-editor-v2 erp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-draft-title">
     <h3 id="erp-draft-title">Preparar produto do ERP</h3>
     <p className="erp-review-dialog-note">Será criado um rascunho oculto. A publicação só acontece depois que você editar e ativar o produto na aba Produtos.</p>
     <label className="erp-review-form-field">Nome do produto<input maxLength={160} value={draftName} onChange={e=>setDraftName(e.target.value)}/></label>
