@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {sameErpModel} from '../src/utils/erpModel.js';
 import {catalogDisplayPrice} from '../src/utils/catalogPrice.js';
+import {shouldStageProductAsHidden} from '../src/utils/productPublication.js';
 import {summarizeLinkedProducts} from '../api/_erp.js';
 
 const fixtures=[
@@ -34,4 +35,17 @@ assert.ok(!/\bconfirm\s*\(/.test(main),'Ações do Admin não devem usar confirm
 assert.ok(main.includes('<AdminConfirmDialog'), 'Exclusões precisam de modal personalizado');
 const erpUi=fs.readFileSync(new URL('../src/components/ErpIntegration.jsx',import.meta.url),'utf8');
 assert.ok(erpUi.includes("modelTokens(item.modelName||item.name).join('-')"),'Fila deve agrupar modelo completo, não somente prefixo');
-console.log('OK: integração, publicação controlada, preço protegido e confirmações personalizadas.');
+// Caso reportado: rascunho com vínculo no ERP, foto recém-anexada
+// e checkbox "Produto publicado" marcado no formulário.
+const pendingPhoto=[{name:'camaro.webp',type:'image/webp'}];
+assert.equal(shouldStageProductAsHidden({id:'camaro-id',isActive:true,wasHidden:true},pendingPhoto),true,'Rascunho oculto deve gravar a foto antes de publicar');
+assert.equal(shouldStageProductAsHidden({id:'camaro-id',isActive:false,wasHidden:true},pendingPhoto),false,'Salvar como rascunho não pode publicar');
+assert.equal(shouldStageProductAsHidden({id:'public-id',isActive:true,wasHidden:false},pendingPhoto),false,'Produto já publicado permanece publicado durante upload');
+assert.equal(shouldStageProductAsHidden({isActive:true},pendingPhoto),true,'Produto novo deve aguardar foto');
+assert.equal(shouldStageProductAsHidden({id:'camaro-id',isActive:true,wasHidden:true},[]),false,'Sem upload pendente não deve atrasar gravação');
+const catalogService=fs.readFileSync(new URL('../src/services/catalog.js',import.meta.url),'utf8');
+const saveFlow=catalogService.slice(catalogService.indexOf('export async function saveProduct('),catalogService.indexOf('export async function setProductCover'));
+assert.ok(saveFlow.indexOf("adminApi('addProductImage'")<saveFlow.indexOf("adminApi('saveProduct',{product:{...staged,id,isActive:true}})"),'Publicação acontece após cadastro da foto');
+assert.ok(saveFlow.indexOf("adminApi('setCover'")<saveFlow.indexOf("adminApi('saveProduct',{product:{...staged,id,isActive:true}})"),'Publicação acontece após definir a capa');
+assert.ok(main.includes('wasHidden:p.isActive===false'),'O editor deve preservar o status original do produto');
+console.log('OK: publicação de ocultos com foto, vínculo ERP e sem perda de dados.');
