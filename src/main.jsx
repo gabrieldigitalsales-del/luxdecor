@@ -87,7 +87,7 @@ function App(){
    setShowPromotion(true);
   }).catch(()=>{});
   return()=>{active=false};
- },[]);
+ },[admin]);
  const closePromotion=()=>{
   if(activePromotion)try{sessionStorage.setItem('lux-promo-shown:'+String(activePromotion.updated_at||activePromotion.occasion),'1')}catch{}
   setShowPromotion(false);
