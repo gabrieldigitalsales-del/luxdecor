@@ -113,29 +113,38 @@ export default async function handler(req,res){
       const erp=await readErpProducts(sb);
       const item=erp.items.find(p=>String(p.id)===erpId);
       if(!item||item.active===false||item.archivedAt||item.publishOnSite!==true)return json(res,400,{error:'Somente produtos ativos e liberados no ERP podem entrar na fila.'});
-      const {data:existing,error:existingError}=await sb.from('luxdecor_erp_product_links').select('site_product_id').eq('erp_product_id',erpId).limit(1);
+      const model=String(item.nome_produto||item.name||'');
+      const factory=String(item.fornecedor||item.supplier||item.brand||'').trim().toLocaleLowerCase('pt-BR');
+      const candidates=erp.items.filter(p=>p?.id&&p.publishOnSite===true&&p.active!==false&&!p.archivedAt&&
+        sameErpModel(model,p.nome_produto||p.name)&&
+        String(p.fornecedor||p.supplier||p.brand||'').trim().toLocaleLowerCase('pt-BR')===factory);
+      if(!candidates.length)return json(res,400,{error:'Não foi possível identificar o modelo no ERP. Confira o cadastro.'});
+      const candidateIds=candidates.map(p=>String(p.id));
+      const {data:existing,error:existingError}=await sb.from('luxdecor_erp_product_links')
+        .select('site_product_id,erp_product_id').in('erp_product_id',candidateIds);
       if(existingError)throw existingError;
-      if(existing?.length)return json(res,409,{error:'Esta variação já está associada a um produto do site. Atualize a lista.'});
-      const name=String(body.name||item.nome_produto||item.name||'').trim().slice(0,160);
+      if((existing||[]).length)return json(res,409,{error:'Este modelo já tem variações vinculadas a um produto do site. Associe as demais ao mesmo produto na lista abaixo.'});
+      const name=String(body.name||model).trim().slice(0,160);
       const category=String(body.category||'Outros').trim().slice(0,80)||'Outros';
       const description=String(body.description||'').trim().slice(0,3000);
-      if(name.length<2)return json(res,400,{error:'Informe um nome válido para o produto.'});
-      const rawPrice=item.preco_final??item.price;
-      const amount=rawPrice==null||rawPrice===''?NaN:Number(rawPrice);
-      const price=Number.isFinite(amount)&&amount>0?Number(amount.toFixed(2)):null;
+      if(name.length<2||!sameErpModel(name,model))return json(res,400,{error:'Informe o nome deste mesmo modelo, sem trocar por outro produto.'});
+      const values=candidates.map(p=>p.preco_final??p.price).map(v=>v==null||v===''?NaN:Number(v));
+      const price=values.every(v=>Number.isFinite(v)&&v>0)?Number(Math.min(...values).toFixed(2)):null;
       const {data:created,error:createError}=await sb.from('luxdecor_products').insert({
         name,category_name:category,description,features:[],price,
-        price_label:price?price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Sob consulta',
+        price_label:price?(values.some(v=>v>price)?'A partir de ':'')+price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Sob consulta',
         badge:'Novo',is_active:false,sort_order:0,updated_at:new Date().toISOString()
       }).select('id').single();
       if(createError)throw createError;
-      const {error:linkError}=await sb.from('luxdecor_erp_product_links').insert({site_product_id:created.id,erp_product_id:erpId});
+      const {error:linkError}=await sb.from('luxdecor_erp_product_links').insert(
+        candidateIds.map(id=>({site_product_id:created.id,erp_product_id:id}))
+      );
       if(linkError){
         await sb.from('luxdecor_products').delete().eq('id',created.id);
-        if(linkError.code==='23505')return json(res,409,{error:'Esta variação já está vinculada. Atualize a lista.'});
+        if(linkError.code==='23505')return json(res,409,{error:'O modelo já está vinculado. Atualize a lista.'});
         throw linkError;
       }
-      return json(res,200,{ok:true,id:created.id,draft:true});
+      return json(res,200,{ok:true,id:created.id,draft:true,variants:candidateIds.length});
     }
     if(action==='erpUnlink'){
       const {error}=await sb.from('luxdecor_erp_product_links').delete().eq('site_product_id',String(body.siteProductId||'')).eq('erp_product_id',String(body.erpProductId||''));
