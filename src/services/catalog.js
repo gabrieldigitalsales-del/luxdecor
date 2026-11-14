@@ -21,6 +21,48 @@ const toProduct = (row) => {
   };
 };
 
+// Modelos repetidos no catálogo representam um mesmo produto com variantes.
+function combineErpAvailability(siteIds, availability){
+ const found=siteIds.map(id=>availability[String(id)]).filter(Boolean);
+ if(!found.length)return null;
+ const unique=new Map();
+ for(const item of found)for(const option of item.options||[]){
+  if(!unique.has(String(option.id)))unique.set(String(option.id),option);
+ }
+ const options=[...unique.values()].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR',{numeric:true}));
+ const priced=options.map(o=>o.price).filter(v=>Number.isFinite(Number(v))&&Number(v)>0);
+ const unknownVariants=options.filter(v=>v.unknown).length;
+ const knownVariants=options.length-unknownVariants;
+ const quantity=options.reduce((sum,v)=>sum+(v.unknown?0:Math.max(0,Number(v.stock)||0)),0);
+ const result={linked:true,options,variants:options.length,quantity,unknownVariants,knownVariants};
+ if(options.length&&priced.length===options.length){
+  const min=Math.min(...priced),max=Math.max(...priced);
+  result.sitePrice=min;
+  result.sitePriceLabel=(max>min?'A partir de ':'')+min.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ }
+ return result;
+}
+export function applyErpAvailability(products,availability){
+ return products.map(p=>({...p,erpAvailability:combineErpAvailability(p.erpSiteIds||[p.id],availability)}));
+}
+function groupCatalogByModel(rows){
+ const groups=new Map();
+ const normalize=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ');
+ for(const row of rows){
+  const product=toProduct(row),key=normalize(product.name);
+  if(!key){continue}
+  const existing=groups.get(key);
+  if(!existing){groups.set(key,{...product,erpSiteIds:[product.id]});continue}
+  // Preferimos o cadastro com melhor material visual; os demais permanecem no banco.
+  const quality=p=>(p.images?.length||0)*10+(p.desc?.length||0)/50+(p.features?.length||0);
+  const best=quality(product)>quality(existing)?product:existing;
+  const images=[...new Set([...(existing.images||[]),...(product.images||[])].filter(Boolean))];
+  const features=[...new Set([...(existing.features||[]),...(product.features||[])])];
+  groups.set(key,{...best,images,image:best.image||images[0]||'',features,erpSiteIds:[...existing.erpSiteIds,product.id],sortOrder:Math.min(existing.sortOrder,product.sortOrder)});
+ }
+ return [...groups.values()].sort((a,b)=>a.sortOrder-b.sortOrder);
+}
+
 export async function fetchCatalog() {
   if (!supabaseConfigured) return null;
   const { data, error } = await supabase
@@ -32,7 +74,7 @@ export async function fetchCatalog() {
   if (error) throw error;
   let availability={};
   try{availability=await fetchErpAvailability()}catch(error){console.warn('Disponibilidade ERP indisponível; catálogo preservado.',error.message)}
-  return (data || []).map(row=>{const product=toProduct(row);return {...product,erpAvailability:availability[String(row.id)]||null}});
+  return applyErpAvailability(groupCatalogByModel(data||[]),availability);
 
 }
 
