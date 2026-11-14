@@ -6,6 +6,7 @@ import { supabaseConfigured } from './lib/supabase';
 import {
   fetchCatalog,
   fetchErpAvailability,
+  applyErpAvailability,
   fetchSiteSettings,
   getAdminSession,
   adminLogin,
@@ -64,7 +65,7 @@ function App(){
  const [slide,setSlide]=useState(0); const [filter,setFilter]=useState('Todos'); const [query,setQuery]=useState(''); const [selected,setSelected]=useState(null); const [favorites,setFavorites]=useState(()=>{try{return JSON.parse(localStorage.getItem('lux_favorites')||'[]')}catch{return []}}); const [showFavorites,setShowFavorites]=useState(false); const [admin,setAdmin]=useState(false); const [waOpen,setWaOpen]=useState(false); const [mobileMenu,setMobileMenu]=useState(false); const [sort,setSort]=useState('featured'); const [zoom,setZoom]=useState(false); const [imageError,setImageError]=useState({});
  const [cloudState,setCloudState]=useState(supabaseConfigured?'loading':'local'); const [cloudMessage,setCloudMessage]=useState('');
  useEffect(()=>{let live=true;(async()=>{if(!supabaseConfigured)return;try{const [catalog,remoteSettings]=await Promise.all([fetchCatalog(),fetchSiteSettings()]);if(!live)return;if(catalog?.length)setProducts(catalog);if(remoteSettings)setSettings(prev=>({...prev,...remoteSettings,siteImages:{...DEFAULT_SITE_IMAGES,...(remoteSettings.siteImages||{})}}));setCloudState('online')}catch(e){console.error(e);if(live){setCloudState('error');setCloudMessage(e.message||'Não foi possível carregar o catálogo online.')}}})();return()=>{live=false}},[]);
- useEffect(()=>{if(!supabaseConfigured)return;const update=async()=>{try{const availability=await fetchErpAvailability();setProducts(prev=>prev.map(p=>({...p,erpAvailability:availability[String(p.id)]||null})));}catch{}};const t=setInterval(update,60000);return()=>clearInterval(t)},[]);
+ useEffect(()=>{if(!supabaseConfigured)return;const update=async()=>{try{const availability=await fetchErpAvailability();setProducts(prev=>applyErpAvailability(prev,availability));}catch{}};const t=setInterval(update,60000);return()=>clearInterval(t)},[]);
  useEffect(()=>{const t=setInterval(()=>setSlide(s=>(s+1)%slides.length),6500);return()=>clearInterval(t)},[settings.siteImages]);
  useEffect(()=>{if(!supabaseConfigured)localStorage.setItem('lux_products',JSON.stringify(products))},[products]);
  useEffect(()=>{if(!supabaseConfigured)localStorage.setItem('lux_settings',JSON.stringify(settings))},[settings]);
