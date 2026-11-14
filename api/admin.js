@@ -58,7 +58,7 @@ function json(res,status,data){ res.status(status).json(data); }
 function normalizeProduct(row){
   const ordered=[...(row.product_images||[])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   const images=ordered.map(x=>x.url).filter(Boolean); const cover=row.cover_url||images[0]||'';
-  return {id:row.id,name:row.name,category:row.category?.name||row.category_name||'Outros',categoryId:row.category_id,price:row.price,priceLabel:row.price_label||'Sob consulta',image:cover,images:images.length?images:(cover?[cover]:[]),tag:row.badge||'',desc:row.description||'',features:row.features||[],isActive:row.is_active!==false,sortOrder:row.sort_order||0};
+  return {id:row.id,name:row.name,category:row.category?.name||row.category_name||'Outros',categoryId:row.category_id,price:row.price,priceLabel:row.price_label||'Sob consulta',image:cover,images:images.length?images:(cover?[cover]:[]),tag:row.badge||'',promotionEnabled:row.promotion_enabled===true,desc:row.description||'',features:row.features||[],isActive:row.is_active!==false,sortOrder:row.sort_order||0};
 }
 function safeExt(name,type){
   const byName=(String(name||'').split('.').pop()||'').toLowerCase();
@@ -198,7 +198,7 @@ export default async function handler(req,res){
     }
     if(action==='saveProduct'){
       const p=body.product||{};
-      const payload={name:String(p.name||'').trim(),category_id:p.categoryId||null,category_name:p.category||null,price:p.price===''||p.price==null?null:Number(p.price),price_label:p.priceLabel||'Sob consulta',description:p.desc||'',features:Array.isArray(p.features)?p.features:[],badge:p.tag||null,is_active:p.isActive!==false,sort_order:Number(p.sortOrder||0),updated_at:new Date().toISOString()};
+      const payload={name:String(p.name||'').trim(),category_id:p.categoryId||null,category_name:p.category||null,price:p.price===''||p.price==null?null:Number(p.price),price_label:p.priceLabel||'Sob consulta',description:p.desc||'',features:Array.isArray(p.features)?p.features:[],badge:p.tag||null,promotion_enabled:p.promotionEnabled===true,is_active:p.isActive!==false,sort_order:Number(p.sortOrder||0),updated_at:new Date().toISOString()};
       if(!payload.name) return json(res,400,{error:'Informe o nome do produto.'});
       let id=p.id;
       if(id&&payload.is_active){
