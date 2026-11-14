@@ -199,7 +199,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  const blank=()=>({name:'',category:'Outros',categoryId:null,price:'',priceLabel:'Sob consulta',image:'',images:[],tag:'Novo',desc:'',features:[],isActive:true,sortOrder:0});
  const [session,setSession]=useState(false); const [checking,setChecking]=useState(true); const [password,setPassword]=useState(''); const [authError,setAuthError]=useState('');
  const [products,setAdminProducts]=useState([]);
- const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState('');
+ const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState(''); const [savingProduct,setSavingProduct]=useState(false);
  const [search,setSearch]=useState(''); const [catFilter,setCatFilter]=useState('Todos'); const [editorTab,setEditorTab]=useState('basic');
  const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef(); const bulkZipRef=useRef(); const [bulkProgress,setBulkProgress]=useState(null);
  const fixedImages=[['hero0','Hero 01'],['hero1','Hero 02'],['hero2','Hero 03'],['hero3','Hero 04'],['editorial','Imagem editorial central'],['roomDining','Ambiente · Sala de jantar'],['roomLiving','Ambiente · Sala de estar'],['roomOutdoor','Ambiente · Área externa']];
@@ -242,7 +242,29 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  function drop(e){e.preventDefault();addFiles(e.dataTransfer.files||[])}
  function removePending(url){const item=pendingFiles.find(x=>x.preview===url);if(item?.preview)URL.revokeObjectURL(item.preview);setPendingFiles(x=>x.filter(i=>i.preview!==url));setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==url);return {...d,images:imgs,image:d.image===url?(imgs[0]||''):d.image}})}
  async function removeExisting(url){if(!draft?.id)return removePending(url);if(!confirm('Remover esta imagem do produto?'))return;setBusy('Removendo imagem...');try{await removeProductImage(draft.id,url);setDraft(d=>{const imgs=(d.images||[]).filter(x=>x!==url);return {...d,images:imgs,image:d.image===url?(imgs[0]||''):d.image}});setNotice('Imagem removida.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
- async function save(){if(!draft?.name?.trim()){setNotice('Informe o nome do produto.');setEditorTab('basic');return}setBusy('Salvando produto...');setNotice('');try{const id=await saveProduct(draft,pendingFiles.map(x=>x.file));if(draft.image&&/^https?:/.test(draft.image))await setProductCover(id,draft.image);await refresh();closeEditor();setNotice('Produto salvo com sucesso.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
+ async function save(){
+  if(busy||savingProduct)return;
+  if(!draft?.name?.trim()){setNotice('Informe o nome do produto.');setEditorTab('basic');return}
+  const snapshot={...draft,images:[...(draft.images||[])]};
+  const files=pendingFiles.map(x=>x.file);
+  setNotice('');
+  setBusy('Salvando produto...');
+  // O formulário desaparece imediatamente, mas o rascunho permanece em memória
+  // até a API confirmar; se falhar, reabre com todos os dados e fotos pendentes.
+  setSavingProduct(true);
+  try{
+    const id=await saveProduct(snapshot,files);
+    if(snapshot.image&&/^https?:/.test(snapshot.image))await setProductCover(id,snapshot.image);
+    await refresh();
+    closeEditor();
+    setNotice('Produto salvo com sucesso.');
+  }catch(error){
+    setNotice('Não foi possível salvar: '+(error?.message||'Erro inesperado')+'. Os dados foram preservados.');
+  }finally{
+    setSavingProduct(false);
+    setBusy('');
+  }
+ }
  async function removeProduct(id,name){if(!confirm(`Excluir “${name}”? Esta ação remove também as imagens do produto.`))return;setBusy('Excluindo produto...');try{await deleteProduct(id);await refresh();setNotice('Produto excluído.')}catch(e){setNotice(e.message)}finally{setBusy('')}}
  async function fixedFile(e){const f=e.target.files?.[0];if(!f||!fixedKey)return;setBusy('Enviando imagem...');try{const url=await replaceSiteImage(fixedKey,f);setSettings(prev=>({...prev,siteImages:{...prev.siteImages,[fixedKey]:url}}));setNotice('Imagem do site atualizada.')}catch(err){setNotice(err.message)}finally{setBusy('');e.target.value='';setFixedKey(null)}}
  function chooseFixed(k){setFixedKey(k);setTimeout(()=>fixedRef.current?.click(),0)}
@@ -266,7 +288,16 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
    </main>}
    {view==='site'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Conteúdo visual</div><h2>Imagens fixas do site</h2><p>Troque hero, editorial e ambientes com upload direto.</p></div></div><input ref={fixedRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={fixedFile}/><div className="fixed-image-grid fixed-image-grid-v2">{fixedImages.map(([k,label])=><div className="fixed-image-card fixed-image-card-v2" key={k}><img src={settings.siteImages?.[k]||DEFAULT_SITE_IMAGES[k]} alt=""/><div><b>{label}</b><button onClick={()=>chooseFixed(k)}>Trocar imagem</button></div></div>)}</div></main>}
    {view==='settings'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Loja</div><h2>Configurações</h2><p>Dados e informações do catálogo.</p></div></div><div className="admin-settings-stack"><div className="admin-settings-card"><h3>Loja</h3><label>WhatsApp<input value={settings.whatsapp||''} onChange={e=>setSettings({...settings,whatsapp:e.target.value})}/></label><label>Instagram<input value={settings.instagram||''} onChange={e=>setSettings({...settings,instagram:e.target.value})}/></label><button className="admin-primary" onClick={persistSettings}>Salvar configurações</button></div></div></main>}
-   {draft&&<div className="admin-editor-backdrop"><section className="admin-editor-v2"><header><div><div className="eyebrow">{draft.id?'Editar item':'Novo item'}</div><h2>{draft.id?draft.name||'Produto':'Adicionar produto'}</h2></div><button className="editor-close" onClick={closeEditor}>×</button></header>
+   {savingProduct&&<div className="product-save-backdrop" role="status" aria-live="polite" aria-label="Salvando produto">
+     <div className="product-save-panel"><div className="product-save-icon"><span className="product-save-ring"/><span className="product-save-mark">L</span></div>
+       <span className="product-save-overline">Lux Decor · Catálogo</span>
+       <h3>Salvando produto...</h3>
+       <p>Atualizando as informações e preparando as imagens para o site.</p>
+       <div className="product-save-progress"><span/></div>
+       <small>Não feche a página durante o salvamento.</small>
+     </div>
+   </div>}
+   {draft&&!savingProduct&&<div className="admin-editor-backdrop"><section className="admin-editor-v2"><header><div><div className="eyebrow">{draft.id?'Editar item':'Novo item'}</div><h2>{draft.id?draft.name||'Produto':'Adicionar produto'}</h2></div><button className="editor-close" onClick={closeEditor}>×</button></header>
      <div className="editor-tabs"><button className={editorTab==='basic'?'active':''} onClick={()=>setEditorTab('basic')}>01 Informações</button><button className={editorTab==='photos'?'active':''} onClick={()=>setEditorTab('photos')}>02 Fotos <span>{draft.images?.length||0}</span></button><button className={editorTab==='details'?'active':''} onClick={()=>setEditorTab('details')}>03 Detalhes</button></div>
      <div className="editor-body">
        {editorTab==='basic'&&<div className="editor-grid"><label className="wide">Nome do produto<input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} placeholder="Ex.: Sofá Retrátil Milão"/></label><label>Categoria<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{CATEGORIES.map(x=><option key={x}>{x}</option>)}</select></label><label>Selo<input value={draft.tag||''} onChange={e=>setDraft({...draft,tag:e.target.value})} placeholder="Novo, Destaque..."/></label><label>Preço numérico<input type="number" step="0.01" value={draft.price??''} onChange={e=>setDraft({...draft,price:e.target.value})} placeholder="Opcional"/></label><label>Preço exibido<input value={draft.priceLabel||''} onChange={e=>setDraft({...draft,priceLabel:e.target.value})} placeholder="Ex.: A partir de R$ 2.999"/></label><label>Ordem<input type="number" value={draft.sortOrder||0} onChange={e=>setDraft({...draft,sortOrder:Number(e.target.value)})}/></label><label className="toggle-line"><input type="checkbox" checked={draft.isActive!==false} onChange={e=>setDraft({...draft,isActive:e.target.checked})}/> Produto publicado</label>}</div>}
