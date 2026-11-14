@@ -65,16 +65,18 @@ function groupCatalogByModel(rows){
 
 export async function fetchCatalog() {
   if (!supabaseConfigured) return null;
-  const { data, error } = await supabase
-    .from('luxdecor_products')
-    .select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,sort_order,is_cover)')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  let availability={};
-  try{availability=await fetchErpAvailability()}catch(error){console.warn('Disponibilidade ERP indisponível; catálogo preservado.',error.message)}
-  return applyErpAvailability(groupCatalogByModel(data||[]),availability);
+  // Carrega catálogo e disponibilidade em paralelo para evitar espera sequencial.
+  const [catalogResult,availability] = await Promise.all([
+    supabase
+      .from('luxdecor_products')
+      .select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,sort_order,is_cover)')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false }),
+    fetchErpAvailability().catch(error=>{console.warn('Disponibilidade ERP indisponível; catálogo preservado.',error.message);return {};}),
+  ]);
+  if (catalogResult.error) throw catalogResult.error;
+  return applyErpAvailability(groupCatalogByModel(catalogResult.data||[]),availability);
 
 }
 
@@ -118,28 +120,31 @@ export async function adminLogin(password){return adminApi('login',{password});}
 export async function adminLogout(){return adminApi('logout');}
 export async function adminFetchProducts(){const r=await adminApi('products');return r.products||[];}
 
-async function compressImage(file){
-  if(!file || !String(file.type||'').startsWith('image/')) return file;
-  if(file.type==='image/webp' && file.size<=1400000) return file;
+async function compressImage(file,role='product'){
+  if(!file||!String(file.type||'').startsWith('image/'))return file;
+  const max=role==='site'?1920:1400;
+  const quality=role==='site'?0.77:0.74;
+  // Fotos pequenas já otimizadas não precisam ser reprocessadas.
+  if(file.type==='image/webp'&&file.size<110000)return file;
   try{
     const bitmap=await createImageBitmap(file);
-    const max=1800;
     const scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
     const canvas=document.createElement('canvas');
     canvas.width=Math.max(1,Math.round(bitmap.width*scale));
     canvas.height=Math.max(1,Math.round(bitmap.height*scale));
     canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
     bitmap.close?.();
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',0.84));
-    if(!blob || blob.size>=file.size) return file;
-    const safeName=String(file.name||'imagem').replace(/\.[^.]+$/,'')+'.webp';
-    return new File([blob],safeName,{type:'image/webp',lastModified:Date.now()});
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',quality));
+    // Não sacrificar qualidade se a economia de bytes for insignificante.
+    if(!blob||blob.size>=file.size*0.92)return file;
+    const name=String(file.name||'imagem').replace(/\.[^.]+$/,'')+'.webp';
+    return new File([blob],name,{type:'image/webp',lastModified:Date.now()});
   }catch{return file}
 }
 
 async function uploadWithSignedUrl(file,bucket,folder){
   if(!supabaseConfigured) throw new Error('Supabase público não configurado no Vercel.');
-  const optimized=await compressImage(file);
+  const optimized=await compressImage(file,bucket==='luxdecor-site-assets'?'site':'product');
   const signed=await adminApi('uploadUrl',{bucket,folder,fileName:optimized.name,contentType:optimized.type});
   const {error}=await supabase.storage.from(bucket).uploadToSignedUrl(signed.path,signed.token,optimized,{contentType:optimized.type||undefined,cacheControl:'31536000'});
   if(error) throw error;
