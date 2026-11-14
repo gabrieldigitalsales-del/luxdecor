@@ -88,7 +88,7 @@ export default async function handler(req,res){
     if(action==='erpIntegrationInfo'){
       const [erp,links]=await Promise.all([readErpProducts(sb),sb.from('luxdecor_erp_product_links').select('site_product_id,erp_product_id')]);
       if(links.error)throw links.error;
-      return json(res,200,{erp:erp.items.map(p=>({id:String(p.id),name:erpLabel(p),modelName:String(p.nome_produto||p.name||''),stock:Number(p.stock)||0,unknown:/quantidade n[aã]o informada/i.test(String(p.observacoes||'')),publishOnSite:p.publishOnSite===true,price:Number(p.preco_final??p.price)||0})),links:links.data||[],revision:erp.revision});
+      return json(res,200,{erp:erp.items.map(p=>({id:String(p.id),name:erpLabel(p),modelName:String(p.nome_produto||p.name||''),supplier:String(p.fornecedor||p.supplier||p.brand||''),stock:Number(p.stock)||0,unknown:/quantidade n[aã]o informada/i.test(String(p.observacoes||'')),publishOnSite:p.publishOnSite===true,price:Number(p.preco_final??p.price)||0})),links:links.data||[],revision:erp.revision});
     }
     if(action==='erpLink'){
       const siteId=String(body.siteProductId||''),erpId=String(body.erpProductId||'');
