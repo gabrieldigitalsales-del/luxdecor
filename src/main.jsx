@@ -194,10 +194,11 @@ function ProductModal({p,onClose,wa}){
  </div>;
 }
 
-function AdminPanel({products,setProducts,settings,setSettings,onClose}){
+function AdminPanel({products:publicProducts,setProducts,settings,setSettings,onClose}){
  const CATEGORIES=['Sofás','Mesas','Cadeiras','Sala de jantar','Área externa','Banquetas','Aparadores','Espelhos','Outros'];
  const blank=()=>({name:'',category:'Outros',categoryId:null,price:'',priceLabel:'Sob consulta',image:'',images:[],tag:'Novo',desc:'',features:[],isActive:true,sortOrder:0});
  const [session,setSession]=useState(false); const [checking,setChecking]=useState(true); const [password,setPassword]=useState(''); const [authError,setAuthError]=useState('');
+ const [products,setAdminProducts]=useState([]);
  const [view,setView]=useState('products'); const [draft,setDraft]=useState(null); const [pendingFiles,setPendingFiles]=useState([]); const [busy,setBusy]=useState(''); const [notice,setNotice]=useState('');
  const [search,setSearch]=useState(''); const [catFilter,setCatFilter]=useState('Todos'); const [editorTab,setEditorTab]=useState('basic');
  const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef(); const bulkZipRef=useRef(); const [bulkProgress,setBulkProgress]=useState(null);
@@ -205,7 +206,12 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
  useEffect(()=>{let alive=true;getAdminSession().then(ok=>alive&&setSession(ok)).finally(()=>alive&&setChecking(false));return()=>{alive=false}},[]);
  async function login(e){e.preventDefault();setAuthError('');setBusy('Entrando...');try{await adminLogin(password);setSession(true);setPassword('');await refresh()}catch(err){setAuthError(err.message)}finally{setBusy('')}}
  async function logout(){try{await adminLogout()}finally{setSession(false)}}
- async function refresh(){const [ps,ss]=await Promise.all([adminFetchProducts(),fetchSiteSettings()]);if(ps)setProducts(ps);if(ss)setSettings(prev=>({...prev,...ss,siteImages:{...DEFAULT_SITE_IMAGES,...(ss.siteImages||{})}}))}
+ async function refresh(){
+  const [ps,ss,catalog]=await Promise.all([adminFetchProducts(),fetchSiteSettings(),fetchCatalog()]);
+  if(ps)setAdminProducts(ps);
+  if(catalog)setProducts(catalog);
+  if(ss)setSettings(prev=>({...prev,...ss,siteImages:{...DEFAULT_SITE_IMAGES,...(ss.siteImages||{})}}));
+}
  async function bulkZipUpload(e){
   const file=e.target.files?.[0];e.target.value='';if(!file)return;
   setBusy('Importando imagens...');setNotice('');setBulkProgress({complete:0,total:0,name:'Iniciando'});
@@ -249,7 +255,7 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
    <nav className="admin-nav"><button className={view==='products'?'active':''} onClick={()=>setView('products')}>Produtos <span>{products.length}</span></button><button className={view==='erp'?'active':''} onClick={()=>setView('erp')}>Integração ERP</button><button className={view==='site'?'active':''} onClick={()=>setView('site')}>Imagens do site</button><button className={view==='settings'?'active':''} onClick={()=>setView('settings')}>Configurações</button></nav>
    {notice&&<div className="admin-notice">{notice}<button onClick={()=>setNotice('')}>×</button></div>}{busy&&<div className="admin-progress"><i/> {busy}</div>}
    {!supabaseConfigured&&<div className="admin-setup-warning"><b>Variáveis públicas do Supabase ausentes.</b><span>Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no Vercel.</span></div>}
-   {view==='erp'&&<ErpIntegration products={products} onCatalogChange={refresh} onEditDraft={async id=>{const latest=await adminFetchProducts();setProducts(latest);const found=latest.find(p=>String(p.id)===String(id));if(found){openEdit(found);setView('products');setNotice('Rascunho do ERP criado. Adicione imagens e publique somente quando estiver pronto.')}else{setView('products');setNotice('Rascunho criado. Localize-o na lista de produtos para editar.')}}}/>} 
+   {view==='erp'&&<ErpIntegration products={products} onCatalogChange={refresh} onEditDraft={async id=>{const latest=await adminFetchProducts();setAdminProducts(latest);const found=latest.find(p=>String(p.id)===String(id));if(found){openEdit(found);setView('products');setNotice('Rascunho do ERP criado. Adicione imagens e publique somente quando estiver pronto.')}else{setView('products');setNotice('Rascunho criado. Localize-o na lista de produtos para editar.')}}}/>} 
    {view==='products'&&<main className="admin-workspace">
      <div className="admin-title-row"><div><div className="eyebrow">Catálogo</div><h2>Produtos</h2><p>Adicione fotos, edite informações ou retire um item sem sair desta tela.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><input type="file" accept=".zip,application/zip" ref={bulkZipRef} hidden onChange={bulkZipUpload}/><button className="admin-primary" disabled={!!busy} onClick={()=>bulkZipRef.current?.click()}>Importar ZIP de produtos</button><button className="admin-primary" onClick={openNew}>+ Adicionar produto</button></div></div>{bulkProgress&&<p role="status" style={{padding:"12px 0"}}>Imagens vinculadas: {bulkProgress.complete}/{bulkProgress.total} — {bulkProgress.name}</p>}
      <div className="admin-stats"><div><b>{stats.total}</b><span>Total</span></div><div><b>{stats.published}</b><span>Publicados</span></div><div><b>{stats.hidden}</b><span>Ocultos</span></div><div><b>{stats.consult}</b><span>Sob consulta</span></div></div>
