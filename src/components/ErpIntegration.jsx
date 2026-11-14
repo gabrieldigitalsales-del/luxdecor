@@ -11,6 +11,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
  const requestRef=useRef(null),mountedRef=useRef(true);
  const [query,setQuery]=useState(''),[status,setStatus]=useState('all'),[page,setPage]=useState(1);
  const [selection,setSelection]=useState({}),[approval,setApproval]=useState(null);
+ const [manualFor,setManualFor]=useState(null),[manualQuery,setManualQuery]=useState(''),[manualVerified,setManualVerified]=useState(false);
  const [newDraft,setNewDraft]=useState(null),[draftName,setDraftName]=useState(''),[draftCategory,setDraftCategory]=useState('Sofás'),[draftDescription,setDraftDescription]=useState('');
  const load=useCallback(async(silent=false)=>{
   if(requestRef.current)return requestRef.current;
@@ -59,7 +60,7 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   setBusy(true);setError('');setNotice('');
   try{
    if(approval.remove)await adminUnlinkErp(approval.siteId,approval.erpId);
-   else await adminLinkErp(approval.siteId,approval.erpId);
+   else await adminLinkErp(approval.siteId,approval.erpId,approval.manual?{manual:true,confirmedSameModel:manualVerified,confirmedSiteName:approval.siteName}:{});
    setApproval(null);setSelection(v=>({...v,[approval.siteId]:''}));
    await load(true);setNotice(approval.remove?'Vínculo removido.':'Variação vinculada com sucesso.');
   }catch(e){setError(e.message)}finally{setBusy(false)}
@@ -71,11 +72,12 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   catch(e){setError(e.message)}finally{setBusy(false)}
  };
  useEffect(()=>{
-  if(!newDraft&&!approval)return;
-  const onKey=e=>{if(e.key==='Escape'&&!busy){setApproval(null);setNewDraft(null)}};
+  if(!newDraft&&!approval&&!manualFor)return;
+  const onKey=e=>{if(e.key==='Escape'&&!busy){setApproval(null);setNewDraft(null);setManualFor(null)}};
   window.addEventListener('keydown',onKey);
   return()=>window.removeEventListener('keydown',onKey);
- },[newDraft,approval,busy]);
+ },[newDraft,approval,manualFor,busy]);
+ const manualOptions=useMemo(()=>availableErp.filter(x=>norm([x.name,x.modelName,x.supplier,x.id].join(' ')).includes(norm(manualQuery))).slice(0,60),[availableErp,manualQuery]);
  const linked=(data.links||[]).length;
  return <main className="erp-review">
   <header className="erp-review-header">
@@ -125,7 +127,8 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
         {candidates.filter(x=>!links.some(l=>String(l.erp_product_id)===String(x.id))).map(x=><option key={x.id} value={x.id}>{x.name} · {x.publishOnSite?'Liberada':'Não liberada'} · {x.unknown?'A conferir':x.stock+' un.'}</option>)}
        </select>
        <button type="button" disabled={!chosen||!chosen.publishOnSite||busy} onClick={()=>setApproval({siteId:p.id,erpId:selected,siteName:p.name,erpName:chosen?.name,publishOnSite:chosen?.publishOnSite,price:chosen?.price})}>Revisar vínculo</button>
-       {chosen&&!chosen.publishOnSite&&<small className="erp-review-model-hint">Esta variação existe no ERP, mas precisa ser marcada como “Exibir no site” para ser vinculada.</small>}{!candidates.length&&<small className="erp-review-model-hint">Nenhuma variação do modelo “{p.name}” foi encontrada. Confira se o nome do modelo no ERP é correspondente.</small>}
+       <button type="button" className="erp-review-manual-button" disabled={busy} onClick={()=>{setManualFor({siteId:p.id,siteName:p.name});setManualQuery('')}}>Buscar variações manualmente</button>
+       {chosen&&!chosen.publishOnSite&&<small className="erp-review-model-hint">Esta variação existe no ERP, mas precisa ser marcada como “Exibir no site” para ser vinculada.</small>}{!candidates.length&&<small className="erp-review-model-hint">Nenhuma correspondência automática. Use a busca manual para encontrar o item no ERP.</small>}
       </div>
      </div>
     </article>;
@@ -134,6 +137,16 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
   </div>}
   {!loading&&pages>1&&<div className="erp-review-pagination"><span>{filtered.length} produtos encontrados · Página {Math.min(page,pages)} de {pages}</span><div><button type="button" disabled={page<=1} onClick={()=>setPage(n=>n-1)}>Anterior</button><button type="button" disabled={page>=pages} onClick={()=>setPage(n=>n+1)}>Próxima</button></div></div>}
   <p className="erp-review-footnote">A fila é atualizada ao consultar o ERP. Novos produtos entram como rascunho oculto: adicione imagens e confira os detalhes na aba Produtos antes de publicar. A liberação “Exibir no site” continua controlada no ERP.</p>
+  {manualFor&&<div className="admin-editor-backdrop erp-review-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setManualFor(null)}}>
+   <section className="admin-editor-v2 erp-review-dialog erp-review-manual-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-manual-title">
+    <h3 id="erp-manual-title">Localizar variação no ERP</h3>
+    <p><b>Produto no site:</b> {manualFor.siteName}</p>
+    <p className="erp-review-dialog-note">Pesquise por modelo, fábrica, cor, medida ou referência. Se o nome for diferente, confirme a identidade do produto antes de vincular.</p>
+    <label className="erp-review-form-field">Pesquisar estoque ERP<input value={manualQuery} onChange={e=>setManualQuery(e.target.value)} placeholder="Ex.: Camaro, Luart, AB201..." autoFocus /></label>
+    <div className="erp-review-manual-results">{manualOptions.map(item=><div className="erp-review-manual-option" key={item.id}><div><strong>{item.name}</strong><small>{item.supplier||'Fábrica não informada'} · {item.publishOnSite?'Liberado para o site':'Não liberado no ERP'}</small></div><button type="button" disabled={busy||!item.publishOnSite} onClick={()=>{setApproval({siteId:manualFor.siteId,siteName:manualFor.siteName,erpId:item.id,erpName:item.name,manual:true,needsConfirmation:!sameErpModel(manualFor.siteName,item.modelName||item.name),publishOnSite:item.publishOnSite});setManualVerified(false);setManualFor(null)}}>Selecionar</button></div>)}{manualOptions.length===0&&<p className="erp-review-state">Nenhuma variação disponível com essa pesquisa. Verifique se o item está cadastrado no ERP.</p>}</div>
+    <div className="erp-review-dialog-actions"><button type="button" onClick={()=>setManualFor(null)}>Fechar</button></div>
+   </section>
+  </div>}
   {newDraft&&<div className="admin-editor-backdrop erp-review-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setNewDraft(null)}}>
    <section className="admin-editor-v2 erp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-draft-title">
     <h3 id="erp-draft-title">Preparar produto do ERP</h3>
@@ -149,9 +162,10 @@ export default function ErpIntegration({products=[],onCatalogChange=()=>{},onEdi
    <section className="erp-review-dialog" role="dialog" aria-modal="true" aria-labelledby="erp-review-dialog-title">
     <h3 id="erp-review-dialog-title">{approval.remove?'Remover vínculo?':'Aprovar associação?'}</h3>
     <p><b>Produto do site:</b> {approval.siteName}</p><p><b>Variação no ERP:</b> {approval.erpName}</p>
+    {!approval.remove&&approval.manual&&approval.needsConfirmation&&<label className="erp-review-manual-confirm"><input type="checkbox" checked={manualVerified} onChange={e=>setManualVerified(e.target.checked)}/><span>Conferi modelo, fábrica e referência. Confirmo que esta variação pertence ao mesmo produto exibido no site, mesmo com nomes diferentes.</span></label>}
     {!approval.remove&&!approval.publishOnSite&&<p className="erp-review-warning">Esta variação ainda não está liberada em “Exibir no site” no ERP. A associação não a publicará automaticamente.</p>}
     <p className="erp-review-dialog-note">Esta operação não altera o estoque físico, as imagens ou o cadastro original.</p>
-    <div className="erp-review-dialog-actions"><button type="button" disabled={busy} onClick={()=>setApproval(null)}>Cancelar</button><button type="button" disabled={busy} onClick={approve}>{busy?'Salvando...':approval.remove?'Confirmar desvínculo':'Aprovar vínculo'}</button></div>
+    <div className="erp-review-dialog-actions"><button type="button" disabled={busy} onClick={()=>setApproval(null)}>Cancelar</button><button type="button" disabled={busy||(!approval.remove&&approval.needsConfirmation&&!manualVerified)} onClick={approve}>{busy?'Salvando...':approval.remove?'Confirmar desvínculo':'Aprovar vínculo'}</button></div>
    </section>
   </div>}
  </main>;
