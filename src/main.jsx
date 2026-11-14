@@ -204,7 +204,8 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  const fixedRef=useRef(); const [fixedKey,setFixedKey]=useState(null); const fileRef=useRef(); const bulkZipRef=useRef(); const [bulkProgress,setBulkProgress]=useState(null);
  const fixedImages=[['hero0','Hero 01'],['hero1','Hero 02'],['hero2','Hero 03'],['hero3','Hero 04'],['editorial','Imagem editorial central'],['roomDining','Ambiente · Sala de jantar'],['roomLiving','Ambiente · Sala de estar'],['roomOutdoor','Ambiente · Área externa']];
  useEffect(()=>{let alive=true;getAdminSession().then(ok=>alive&&setSession(ok)).finally(()=>alive&&setChecking(false));return()=>{alive=false}},[]);
- async function login(e){e.preventDefault();setAuthError('');setBusy('Entrando...');try{await adminLogin(password);setSession(true);setPassword('');await refresh()}catch(err){setAuthError(err.message)}finally{setBusy('')}}
+ useEffect(()=>{if(session)refresh().catch(err=>setNotice(err.message||'Falha ao atualizar o painel.'))},[session]);
+ async function login(e){e.preventDefault();setAuthError('');setBusy('Entrando...');try{await adminLogin(password);setSession(true);setPassword('')}catch(err){setAuthError(err.message)}finally{setBusy('')}}
  async function logout(){try{await adminLogout()}finally{setSession(false)}}
  async function refresh(){
   const [ps,ss,catalog]=await Promise.all([adminFetchProducts(),fetchSiteSettings(),fetchCatalog()]);
