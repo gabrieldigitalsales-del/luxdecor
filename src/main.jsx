@@ -77,6 +77,16 @@ function App(){
  const cats=useMemo(()=>['Todos',...categoryOrder.filter(c=>curated.some(p=>p.category===c))],[curated]);
  const categoryCounts=useMemo(()=>Object.fromEntries(cats.map(c=>[c,c==='Todos'?curated.length:curated.filter(p=>p.category===c).length])),[cats,curated]);
  const slides=useMemo(()=>SLIDE_COPY.map((x,i)=>({...x,image:settings.siteImages?.['hero'+i]||DEFAULT_SITE_IMAGES['hero'+i]})),[settings.siteImages]);
+ // Não baixar todas as imagens gigantes do banner na abertura da página.
+ const [loadedSlides,setLoadedSlides]=useState(()=>new Set([0,1]));
+ useEffect(()=>{
+  setLoadedSlides(prev=>{
+   const updated=new Set(prev);
+   updated.add(slide);
+   updated.add((slide+1)%slides.length);
+   return updated.size===prev.size?prev:updated;
+  });
+ },[slide,slides.length]);
  const visible=useMemo(()=>{const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();const matches=curated.filter(p=>(!showFavorites||favorites.includes(p.id))&&(filter==='Todos'||p.category===filter)&&(!query||norm([p.name,p.category,p.desc,...(p.features||[])].join(' ')).includes(norm(query))));return sort==='az'?[...matches].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')):sort==='za'?[...matches].sort((a,b)=>b.name.localeCompare(a.name,'pt-BR')):matches},[curated,filter,query,showFavorites,favorites,sort]);
  const whatsappDigits=String(settings.whatsapp||'').replace(/\D/g,'');
  const wa=(text)=>whatsappDigits?`https://wa.me/${whatsappDigits}?text=${encodeURIComponent(text)}`:'';
@@ -91,7 +101,7 @@ function App(){
 
   <main>
    <section className="hero" aria-label="Destaques Lux Decor">
-    {slides.map((s,i)=><div key={i} className={'hero-slide '+(i===slide?'active':'')}><img src={s.image} alt=""/><div className="hero-shade"/></div>)}
+    {slides.map((s,i)=><div key={i} className={'hero-slide '+(i===slide?'active':'')}>{loadedSlides.has(i)&&<img src={s.image} alt="" decoding="async" loading="eager" fetchPriority={i===0?'high':'low'}/>}<div className="hero-shade"/></div>)}
     <img className="hero-mark" src={A+'logo-mark-white.png'} alt="" aria-hidden="true"/>
     <div className="hero-content"><div className="eyebrow light">{slides[slide].eyebrow}</div><h1>{slides[slide].title}</h1><p>{slides[slide].text}</p><div className="hero-actions"><button className="btn-light" onClick={()=>goCategory(slides[slide].cat)}>{slides[slide].cta}</button>{whatsappDigits?<a className="btn-ghost" href={wa('Olá! Quero conhecer os móveis da Lux Decor.')} target="_blank" rel="noopener noreferrer"><WhatsAppIcon/> Falar com o vendedor</a>:<span className="btn-ghost disabled" aria-disabled="true"><WhatsAppIcon/> Atendimento indisponível</span>}</div></div>
     <div className="hero-nav"><button onClick={()=>setSlide((slide-1+slides.length)%slides.length)} aria-label="Anterior">←</button><div className="hero-dots">{slides.map((_,i)=><button key={i} className={i===slide?'active':''} onClick={()=>setSlide(i)} aria-label={`Slide ${i+1}`}/>)}</div><button onClick={()=>setSlide((slide+1)%slides.length)} aria-label="Próximo">→</button></div>
@@ -155,7 +165,7 @@ function ProductModal({p,onClose,wa}){
    <button className="modal-close" onClick={onClose} aria-label="Fechar detalhes">×</button>
    <div className="modal-gallery">
     <button className="modal-zoom-trigger" onClick={()=>setZoom(true)} aria-label="Ampliar fotografia"><img className="modal-main-img" src={p.images?.[img]||p.image} alt={p.name}/><span>Ampliar imagem +</span></button>
-    {(p.images||[]).length>1&&<div className="thumbs">{p.images.map((x,i)=><button className={i===img?'active':''} onClick={()=>setImg(i)} key={x+i}><img src={x} alt=""/></button>)}</div>}
+    {(p.images||[]).length>1&&<div className="thumbs">{p.images.map((x,i)=><button className={i===img?'active':''} onClick={()=>setImg(i)} key={x+i}><img src={x} alt="" loading="lazy" decoding="async"/></button>)}</div>}
    </div>
    <div className="modal-copy lux-product-details">
     <div className="eyebrow">{p.category}</div><h2>{catalogItemName(p)}</h2>
@@ -244,7 +254,7 @@ function AdminPanel({products,setProducts,settings,setSettings,onClose}){
      <div className="admin-title-row"><div><div className="eyebrow">Catálogo</div><h2>Produtos</h2><p>Adicione fotos, edite informações ou retire um item sem sair desta tela.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><input type="file" accept=".zip,application/zip" ref={bulkZipRef} hidden onChange={bulkZipUpload}/><button className="admin-primary" disabled={!!busy} onClick={()=>bulkZipRef.current?.click()}>Importar ZIP de produtos</button><button className="admin-primary" onClick={openNew}>+ Adicionar produto</button></div></div>{bulkProgress&&<p role="status" style={{padding:"12px 0"}}>Imagens vinculadas: {bulkProgress.complete}/{bulkProgress.total} — {bulkProgress.name}</p>}
      <div className="admin-stats"><div><b>{stats.total}</b><span>Total</span></div><div><b>{stats.published}</b><span>Publicados</span></div><div><b>{stats.hidden}</b><span>Ocultos</span></div><div><b>{stats.consult}</b><span>Sob consulta</span></div></div>
      <div className="admin-toolbar"><label className="admin-search"><span>⌕</span><input placeholder="Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)}/></label><select value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option>Todos</option>{CATEGORIES.map(x=><option key={x}>{x}</option>)}</select></div>
-     <div className="admin-product-cards">{filtered.map(p=><article key={p.id} className="admin-product-card"><div className="admin-product-photo"><img src={p.image||A+'logo-mark-navy.png'} alt=""/><span className={p.isActive===false?'status hidden':'status'}>{p.isActive===false?'Oculto':'Publicado'}</span></div><div className="admin-product-meta"><small>{p.category}</small><h3>{catalogItemName(p)}</h3><strong>{p.priceLabel||'Sob consulta'}</strong><div className="admin-card-actions"><button onClick={()=>openEdit(p)}>Editar</button><button className="danger" onClick={()=>removeProduct(p.id,p.name)}>Excluir</button></div></div></article>)}</div>
+     <div className="admin-product-cards">{filtered.map(p=><article key={p.id} className="admin-product-card"><div className="admin-product-photo"><img src={p.image||A+'logo-mark-navy.png'} alt="" loading="lazy" decoding="async"/><span className={p.isActive===false?'status hidden':'status'}>{p.isActive===false?'Oculto':'Publicado'}</span></div><div className="admin-product-meta"><small>{p.category}</small><h3>{catalogItemName(p)}</h3><strong>{p.priceLabel||'Sob consulta'}</strong><div className="admin-card-actions"><button onClick={()=>openEdit(p)}>Editar</button><button className="danger" onClick={()=>removeProduct(p.id,p.name)}>Excluir</button></div></div></article>)}</div>
      {!filtered.length&&<div className="admin-empty"><b>Nenhum produto encontrado.</b><span>Tente outra busca ou adicione um novo item.</span></div>}
    </main>}
    {view==='site'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Conteúdo visual</div><h2>Imagens fixas do site</h2><p>Troque hero, editorial e ambientes com upload direto.</p></div></div><input ref={fixedRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={fixedFile}/><div className="fixed-image-grid fixed-image-grid-v2">{fixedImages.map(([k,label])=><div className="fixed-image-card fixed-image-card-v2" key={k}><img src={settings.siteImages?.[k]||DEFAULT_SITE_IMAGES[k]} alt=""/><div><b>{label}</b><button onClick={()=>chooseFixed(k)}>Trocar imagem</button></div></div>)}</div></main>}
