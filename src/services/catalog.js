@@ -14,6 +14,7 @@ const toProduct = (row) => {
     image: cover,
     images: images.length ? images : (cover ? [cover] : []),
     tag: row.badge || '',
+    promotionEnabled: row.promotion_enabled === true,
     desc: row.description || '',
     features: row.features || [],
     isActive: row.is_active !== false,
@@ -58,7 +59,7 @@ function groupCatalogByModel(rows){
   const best=quality(product)>quality(existing)?product:existing;
   const images=[...new Set([...(existing.images||[]),...(product.images||[])].filter(Boolean))];
   const features=[...new Set([...(existing.features||[]),...(product.features||[])])];
-  groups.set(key,{...best,images,image:best.image||images[0]||'',features,erpSiteIds:[...existing.erpSiteIds,product.id],sortOrder:Math.min(existing.sortOrder,product.sortOrder)});
+  groups.set(key,{...best,images,image:best.image||images[0]||'',features,promotionEnabled:existing.promotionEnabled===true||product.promotionEnabled===true,erpSiteIds:[...existing.erpSiteIds,product.id],sortOrder:Math.min(existing.sortOrder,product.sortOrder)});
  }
  return [...groups.values()].sort((a,b)=>a.sortOrder-b.sortOrder);
 }
