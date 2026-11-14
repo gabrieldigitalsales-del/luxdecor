@@ -212,7 +212,8 @@ export default async function handler(req,res){
             const {data:images,error:imageError}=await sb.from('luxdecor_product_images').select('id').eq('product_id',id).limit(1);
             if(imageError)throw imageError;
             if(!(current.cover_url||images?.length))return json(res,400,{error:'Adicione uma foto ao produto antes de publicá-lo no catálogo.'});
-            if(!payload.description.trim())return json(res,400,{error:'Informe a descrição do produto antes de publicá-lo.'});
+            // A descrição é opcional: foto e nome são suficientes para ativar o catálogo.
+
           }
         }
       }
