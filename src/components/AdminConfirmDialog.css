@@ -1,0 +1,13 @@
+.lux-confirm-backdrop{position:fixed;inset:0;z-index:31000;background:rgba(11,27,47,.55);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;animation:luxConfirmFade .22s ease both}
+.lux-confirm-card{box-sizing:border-box;background:#fdfcf9;border-radius:8px;width:min(420px,100%);padding:30px;box-shadow:0 24px 85px rgba(0,0,0,.24);animation:luxConfirmRise .25s ease both}
+.lux-confirm-kicker{display:block;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.15em;color:#8593a3}
+.lux-confirm-card h2{font:500 25px/1.2 Georgia,serif;color:#17324e;margin:13px 0 12px}
+.lux-confirm-card p{color:#667585;font-size:13px;line-height:1.65;margin:0 0 25px}
+.lux-confirm-actions{display:flex;gap:10px;justify-content:flex-end}
+.lux-confirm-actions button{padding:12px 16px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700}
+.lux-confirm-cancel{background:#fff;border:1px solid #cbd6e1;color:#233c57}
+.lux-confirm-danger{background:#8e303a;border:1px solid #8e303a;color:#fff}
+.lux-confirm-actions button:disabled{opacity:.5;cursor:progress}
+@keyframes luxConfirmFade{from{opacity:0}to{opacity:1}}@keyframes luxConfirmRise{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(max-width:520px){.lux-confirm-card{padding:23px}.lux-confirm-actions button{flex:1}}
+@media(prefers-reduced-motion:reduce){.lux-confirm-backdrop,.lux-confirm-card{animation:none}}
