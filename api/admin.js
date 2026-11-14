@@ -227,6 +227,28 @@ export default async function handler(req,res){
     if(action==='setCover'){
       const {error}=await sb.from('luxdecor_products').update({cover_url:body.url||null,updated_at:new Date().toISOString()}).eq('id',body.productId); if(error)throw error; return json(res,200,{ok:true});
     }
+    if(action==='getPromotion'){
+      const {data,error}=await sb.from('luxdecor_promotion_popup').select('*').eq('id',1).maybeSingle();
+      if(error)throw error;
+      return json(res,200,{promotion:data||null});
+    }
+    if(action==='savePromotion'){
+      const p=body.promotion||{};
+      const clean=(value,max)=>String(value||'').trim().slice(0,max);
+      const date=(value)=>!value?null:/^\d{4}-\d{2}-\d{2}$/.test(value)?value:undefined;
+      const start=date(p.starts_on),end=date(p.ends_on);
+      if(start===undefined||end===undefined||start&&end&&end<start)return json(res,400,{error:'Revise o período da campanha.'});
+      const headline=clean(p.headline,120),description=clean(p.description,400),button_text=clean(p.button_text,45);
+      if(!headline||!description||!button_text)return json(res,400,{error:'Informe título, texto e botão.'});
+      const link=clean(p.button_link,300)||'#catalogo';
+      if(!(/^(#[a-z0-9_-]+|https:\/\/[^\s]+|\/[^\/])/i.test(link)))return json(res,400,{error:'Use um link HTTPS, uma rota do site ou #catalogo.'});
+      const image=clean(p.image_url,600);
+      if(image&&!/^https:\/\/[^\s]+/i.test(image))return json(res,400,{error:'A imagem precisa ter endereço HTTPS.'});
+      const payload={id:1,enabled:p.enabled===true,occasion:clean(p.occasion,60)||'personalizada',headline,description,button_text,button_link:link,image_url:image||null,starts_on:start,ends_on:end,updated_at:new Date().toISOString()};
+      const {data,error}=await sb.from('luxdecor_promotion_popup').upsert(payload).select('*').single();
+      if(error)throw error;
+      return json(res,200,{ok:true,promotion:data});
+    }
     if(action==='saveSettings'){
       const s=body.settings||{}; const {error}=await sb.from('luxdecor_site_settings').upsert({id:1,whatsapp:s.whatsapp||'',instagram:s.instagram||'',updated_at:new Date().toISOString()}); if(error)throw error; return json(res,200,{ok:true});
     }
