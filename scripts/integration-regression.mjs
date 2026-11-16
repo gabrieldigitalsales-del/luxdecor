@@ -49,3 +49,15 @@ assert.ok(saveFlow.indexOf("adminApi('addProductImage'")<saveFlow.indexOf("admin
 assert.ok(saveFlow.indexOf("adminApi('setCover'")<saveFlow.indexOf("adminApi('saveProduct',{product:{...staged,id,isActive:true}})"),'Publicação acontece após definir a capa');
 assert.ok(main.includes('wasHidden:p.isActive===false'),'O editor deve preservar o status original do produto');
 console.log('OK: publicação de ocultos com foto, vínculo ERP e sem perda de dados.');
+const settingsCode=fs.readFileSync(new URL('../src/services/catalog.js',import.meta.url),'utf8');
+const appCode=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+const backend=fs.readFileSync(new URL('../api/admin.js',import.meta.url),'utf8');
+assert.ok(settingsCode.includes('erpLiveCatalogEnabled: settings?.erp_live_catalog_enabled !== false'),'A flag precisa ser lida do Supabase');
+assert.ok(settingsCode.includes('includeErp?fetchErpAvailability()'),'O catálogo deve omitir consulta ao ERP quando desativado');
+assert.ok(backend.includes('erp_live_catalog_enabled:s.erpLiveCatalogEnabled!==false'),'A opção deve ser salva no Supabase');
+assert.ok(appCode.includes("fetchCatalog({includeErp:false})"),'Primeiro carregamento não deve esperar ERP');
+assert.ok(appCode.includes('if(settings.erpLiveCatalogEnabled===false)'),'Desativar deve cancelar consultas automáticas');
+assert.ok(appCode.includes('clearInterval(t)'),'Intervalo ERP deve ser limpo ao desativar');
+assert.ok(appCode.includes('Consultar estoque e variações do ERP automaticamente'),'Admin precisa expor botão de controle');
+console.log('OK: controle de sincronização ERP persistido e carregamento rápido do catálogo.');
+
