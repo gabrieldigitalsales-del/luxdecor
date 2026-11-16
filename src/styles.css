@@ -200,3 +200,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 @keyframes luxCampaignAppear{from{opacity:0;transform:translateY(-8px) rotate(-2deg)}to{opacity:1;transform:translateY(0) rotate(-2deg)}}
 @media(max-width:640px){.lux-campaign-badge{top:9px;left:8px;padding:6px 9px;font-size:9px;min-height:26px;max-width:calc(100% - 55px)}}
 @media(prefers-reduced-motion:reduce){.lux-campaign-badge{animation:none}}
+
+/* Controle de desempenho do catálogo na área Configurações. */
+.admin-live-erp-setting{margin:18px 0 20px;padding:17px;border:1px solid rgba(21,51,85,.16);border-left:3px solid #24446b;background:#f6f8fa;border-radius:5px}
+.admin-live-erp-setting .admin-live-erp-switch{display:flex;align-items:center;gap:11px;flex-wrap:wrap;font-size:13px;font-weight:700;color:#1c3b61;cursor:pointer}
+.admin-live-erp-setting .admin-live-erp-switch input{accent-color:#173b6e;min-width:19px;min-height:19px;margin:0;flex:none}
+.admin-live-erp-setting p{margin:11px 0 0!important;color:#687d90;font-size:12px;line-height:1.65}
+@media(max-width:600px){.admin-live-erp-setting{padding:13px}.admin-live-erp-setting .admin-live-erp-switch{font-size:12px}}
