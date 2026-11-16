@@ -65,21 +65,21 @@ function groupCatalogByModel(rows){
  return [...groups.values()].sort((a,b)=>a.sortOrder-b.sortOrder);
 }
 
-export async function fetchCatalog() {
+export async function fetchCatalog({includeErp=true}={}) {
   if (!supabaseConfigured) return null;
-  // Carrega catálogo e disponibilidade em paralelo para evitar espera sequencial.
-  const [catalogResult,availability] = await Promise.all([
-    supabase
-      .from('luxdecor_products')
-      .select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,sort_order,is_cover)')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: false }),
-    fetchErpAvailability().catch(error=>{console.warn('Disponibilidade ERP indisponível; catálogo preservado.',error.message);return {};}),
+  const catalogRequest = supabase
+    .from('luxdecor_products')
+    .select('*, category:luxdecor_categories(id,name), product_images:luxdecor_product_images(id,url,sort_order,is_cover)')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
+  // O site pode exibir produtos sem consultar ERP; não segurar a vitrine aguardando estoque.
+  const [catalogResult,availability]=await Promise.all([
+    catalogRequest,
+    includeErp?fetchErpAvailability().catch(error=>{console.warn('Disponibilidade ERP indisponível; catálogo preservado.',error.message);return {};}):Promise.resolve({}),
   ]);
-  if (catalogResult.error) throw catalogResult.error;
+  if(catalogResult.error)throw catalogResult.error;
   return applyErpAvailability(groupCatalogByModel(catalogResult.data||[]),availability);
-
 }
 
 export async function fetchSiteSettings() {
@@ -93,6 +93,7 @@ export async function fetchSiteSettings() {
   return {
     whatsapp: settings?.whatsapp || '',
     instagram: settings?.instagram || '',
+    erpLiveCatalogEnabled: settings?.erp_live_catalog_enabled !== false,
     siteImages: Object.fromEntries((images||[]).map(x=>[x.key,x.url])),
   };
 }
@@ -195,7 +196,7 @@ export async function saveProduct(product,newFiles=[]){
 
 export async function setProductCover(productId,url){return adminApi('setCover',{productId,url});}
 export async function deleteProduct(productId){return adminApi('deleteProduct',{productId});}
-export async function saveSettings(settings){return adminApi('saveSettings',{settings:{whatsapp:settings.whatsapp,instagram:settings.instagram}});}
+export async function saveSettings(settings){return adminApi('saveSettings',{settings:{whatsapp:settings.whatsapp,instagram:settings.instagram,erpLiveCatalogEnabled:settings.erpLiveCatalogEnabled!==false}});}
 
 
 export async function removeProductImage(productId,url){return adminApi('removeProductImage',{productId,url});}
