@@ -61,7 +61,7 @@ const DEFAULT_SITE_IMAGES={
   roomLiving:A+'products/sofa-cinza.png',
   roomOutdoor:A+'products/cadeira-corda.jpg',
 };
-const DEFAULT_SETTINGS={whatsapp:'',instagram:'https://www.instagram.com/luxdecor.sl/',siteImages:DEFAULT_SITE_IMAGES};
+const DEFAULT_SETTINGS={whatsapp:'',instagram:'https://www.instagram.com/luxdecor.sl/',erpLiveCatalogEnabled:true,siteImages:DEFAULT_SITE_IMAGES};
 
 function WhatsAppIcon({size=20}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.52 3.48A11.83 11.83 0 0 0 12.08 0C5.55 0 .24 5.31.24 11.84c0 2.09.55 4.13 1.6 5.93L.14 24l6.38-1.67a11.8 11.8 0 0 0 5.55 1.42h.01c6.52 0 11.83-5.31 11.83-11.84 0-3.16-1.2-6.14-3.39-8.43Z" stroke="currentColor" strokeWidth="1.45"/><path d="M18.4 14.67c-.35-.17-2.05-1.01-2.37-1.13-.32-.12-.55-.17-.78.17-.23.35-.9 1.13-1.1 1.36-.2.23-.4.26-.75.09-.35-.17-1.47-.54-2.8-1.73-1.04-.93-1.74-2.07-1.94-2.42-.2-.35-.02-.54.15-.71.16-.15.35-.4.52-.61.17-.2.23-.35.35-.58.12-.23.06-.43-.03-.61-.09-.17-.78-1.88-1.07-2.58-.28-.68-.57-.59-.78-.6h-.67c-.23 0-.61.09-.93.43-.32.35-1.22 1.19-1.22 2.9 0 1.71 1.25 3.36 1.42 3.59.17.23 2.46 3.76 5.96 5.27.83.36 1.48.57 1.99.73.84.27 1.6.23 2.2.14.67-.1 2.05-.84 2.34-1.65.29-.81.29-1.51.2-1.65-.08-.15-.31-.23-.66-.4Z" fill="currentColor"/></svg>}
 function InstagramIcon({size=20}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.5" cy="6.6" r="1" fill="currentColor" stroke="none"/></svg>}
@@ -74,7 +74,7 @@ function App(){
  const [products,setProducts]=useState(()=>supabaseConfigured?[]:(JSON.parse(localStorage.getItem('lux_products')||'null')||INITIAL_PRODUCTS));
  const [settings,setSettings]=useState(()=>{const saved=JSON.parse(localStorage.getItem('lux_settings')||'null')||{};return {...DEFAULT_SETTINGS,...saved,siteImages:{...DEFAULT_SITE_IMAGES,...(saved.siteImages||{})}}});
  const [slide,setSlide]=useState(0); const [filter,setFilter]=useState('Todos'); const [query,setQuery]=useState(''); const [selected,setSelected]=useState(null); const [favorites,setFavorites]=useState(()=>{try{return JSON.parse(localStorage.getItem('lux_favorites')||'[]')}catch{return []}}); const [showFavorites,setShowFavorites]=useState(false); const [admin,setAdmin]=useState(false); const [waOpen,setWaOpen]=useState(false); const [mobileMenu,setMobileMenu]=useState(false); const [sort,setSort]=useState('featured'); const [zoom,setZoom]=useState(false); const [imageError,setImageError]=useState({});
- const [cloudState,setCloudState]=useState(supabaseConfigured?'loading':'local'); const [cloudMessage,setCloudMessage]=useState('');
+ const [cloudState,setCloudState]=useState(supabaseConfigured?'loading':'local'); const [cloudMessage,setCloudMessage]=useState(''); const [siteSettingsReady,setSiteSettingsReady]=useState(false);
  const [activePromotion,setActivePromotion]=useState(null);
  const [showPromotion,setShowPromotion]=useState(false);
  useEffect(()=>{
@@ -94,8 +94,32 @@ function App(){
   if(activePromotion)try{sessionStorage.setItem('lux-promo-shown:'+String(activePromotion.updated_at||activePromotion.occasion),'1')}catch{}
   setShowPromotion(false);
  };
- useEffect(()=>{let live=true;(async()=>{if(!supabaseConfigured)return;try{const [catalog,remoteSettings]=await Promise.all([fetchCatalog(),fetchSiteSettings()]);if(!live)return;if(catalog?.length)setProducts(catalog);if(remoteSettings)setSettings(prev=>({...prev,...remoteSettings,siteImages:{...DEFAULT_SITE_IMAGES,...(remoteSettings.siteImages||{})}}));setCloudState('online')}catch(e){console.error(e);if(live){setCloudState('error');setCloudMessage(e.message||'Não foi possível carregar o catálogo online.')}}})();return()=>{live=false}},[]);
- useEffect(()=>{if(!supabaseConfigured)return;const update=async()=>{try{const availability=await fetchErpAvailability();setProducts(prev=>applyErpAvailability(prev,availability));}catch{}};const t=setInterval(update,60000);return()=>clearInterval(t)},[]);
+ useEffect(()=>{let live=true;(async()=>{
+  if(!supabaseConfigured){setSiteSettingsReady(true);return}
+  try{
+    // A vitrine aparece sem esperar o ERP. A preferência de sincronização é
+    // consultada em paralelo, sem baixar o estoque enquanto estiver desativada.
+    const [catalog,remoteSettings]=await Promise.all([fetchCatalog({includeErp:false}),fetchSiteSettings()]);
+    if(!live)return;
+    if(catalog)setProducts(catalog);
+    if(remoteSettings)setSettings(prev=>({...prev,...remoteSettings,siteImages:{...DEFAULT_SITE_IMAGES,...(remoteSettings.siteImages||{})}}));
+    setCloudState('online');
+  }catch(e){console.error(e);if(live){setCloudState('error');setCloudMessage(e.message||'Não foi possível carregar o catálogo online.')}}
+  finally{if(live)setSiteSettingsReady(true)}
+ })();return()=>{live=false}},[]);
+ useEffect(()=>{
+  if(!supabaseConfigured||!siteSettingsReady)return;
+  let live=true;
+  if(settings.erpLiveCatalogEnabled===false){
+    // Ao desligar a consulta removemos disponibilidade já carregada no navegador.
+    setProducts(prev=>prev.map(p=>({...p,erpAvailability:null})));
+    return()=>{live=false};
+  }
+  const update=async()=>{try{const availability=await fetchErpAvailability();if(live)setProducts(prev=>applyErpAvailability(prev,availability));}catch(error){console.warn('ERP temporariamente indisponível:',error.message)}};
+  update();
+  const t=setInterval(update,60000);
+  return()=>{live=false;clearInterval(t)};
+ },[settings.erpLiveCatalogEnabled,siteSettingsReady]);
  useEffect(()=>{const t=setInterval(()=>setSlide(s=>(s+1)%slides.length),6500);return()=>clearInterval(t)},[settings.siteImages]);
  useEffect(()=>{if(!supabaseConfigured)localStorage.setItem('lux_products',JSON.stringify(products))},[products]);
  useEffect(()=>{if(!supabaseConfigured)localStorage.setItem('lux_settings',JSON.stringify(settings))},[settings]);
@@ -239,7 +263,7 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
  async function login(e){e.preventDefault();setAuthError('');setBusy('Entrando...');try{await adminLogin(password);setSession(true);setPassword('')}catch(err){setAuthError(err.message)}finally{setBusy('')}}
  async function logout(){try{await adminLogout()}finally{setSession(false)}}
  async function refresh(){
-  const [ps,ss,catalog]=await Promise.all([adminFetchProducts(),fetchSiteSettings(),fetchCatalog()]);
+  const [ps,ss,catalog]=await Promise.all([adminFetchProducts(),fetchSiteSettings(),fetchCatalog({includeErp:false})]);
   if(ps)setAdminProducts(ps);
   if(catalog)setProducts(catalog);
   if(ss)setSettings(prev=>({...prev,...ss,siteImages:{...DEFAULT_SITE_IMAGES,...(ss.siteImages||{})}}));
@@ -350,7 +374,12 @@ function AdminPanel({products:publicProducts,setProducts,settings,setSettings,on
      {!filtered.length&&<div className="admin-empty"><b>Nenhum produto encontrado.</b><span>Tente outra busca ou adicione um novo item.</span></div>}
    </main>}
    {view==='site'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Conteúdo visual</div><h2>Imagens fixas do site</h2><p>Troque hero, editorial e ambientes com upload direto.</p></div></div><input ref={fixedRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={fixedFile}/><div className="fixed-image-grid fixed-image-grid-v2">{fixedImages.map(([k,label])=><div className="fixed-image-card fixed-image-card-v2" key={k}><img src={settings.siteImages?.[k]||DEFAULT_SITE_IMAGES[k]} alt=""/><div><b>{label}</b><button onClick={()=>chooseFixed(k)}>Trocar imagem</button></div></div>)}</div></main>}
-   {view==='settings'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Loja</div><h2>Configurações</h2><p>Dados e informações do catálogo.</p></div></div><div className="admin-settings-stack"><div className="admin-settings-card"><h3>Loja</h3><label>WhatsApp<input value={settings.whatsapp||''} onChange={e=>setSettings({...settings,whatsapp:e.target.value})}/></label><label>Instagram<input value={settings.instagram||''} onChange={e=>setSettings({...settings,instagram:e.target.value})}/></label><button className="admin-primary" onClick={persistSettings}>Salvar configurações</button></div></div></main>}
+   {view==='settings'&&<main className="admin-workspace"><div className="admin-title-row"><div><div className="eyebrow">Loja</div><h2>Configurações</h2><p>Dados e informações do catálogo.</p></div></div><div className="admin-settings-stack"><div className="admin-settings-card"><h3>Loja</h3><label>WhatsApp<input value={settings.whatsapp||''} onChange={e=>setSettings({...settings,whatsapp:e.target.value})}/></label><label>Instagram<input value={settings.instagram||''} onChange={e=>setSettings({...settings,instagram:e.target.value})}/></label>
+       <div className="admin-live-erp-setting">
+         <label className="admin-live-erp-switch"><input type="checkbox" checked={settings.erpLiveCatalogEnabled!==false} onChange={e=>setSettings({...settings,erpLiveCatalogEnabled:e.target.checked})}/><span>Consultar estoque e variações do ERP automaticamente</span></label>
+         <p>Desativado: o catálogo abre sem consultar o ERP e não atualiza estoques a cada minuto. A integração no painel administrativo permanece disponível. Ativado: preços e variações autorizados são consultados novamente.</p>
+       </div>
+       <button className="admin-primary" disabled={!!busy} onClick={persistSettings}>Salvar configurações</button></div></div></main>}
    {confirmRequest&&<AdminConfirmDialog title={confirmRequest.title} message={confirmRequest.message} busy={!!busy} onCancel={()=>setConfirmRequest(null)} onConfirm={executeAdminDelete}/>}
    {savingProduct&&<div className="product-save-backdrop" role="status" aria-live="polite" aria-label="Salvando produto">
      <div className="product-save-panel"><div className="product-save-icon"><span className="product-save-ring"/><span className="product-save-mark">L</span></div>
