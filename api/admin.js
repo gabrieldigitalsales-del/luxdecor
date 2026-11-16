@@ -261,7 +261,7 @@ export default async function handler(req,res){
       return json(res,200,{ok:true,promotion:data});
     }
     if(action==='saveSettings'){
-      const s=body.settings||{}; const {error}=await sb.from('luxdecor_site_settings').upsert({id:1,whatsapp:s.whatsapp||'',instagram:s.instagram||'',updated_at:new Date().toISOString()}); if(error)throw error; return json(res,200,{ok:true});
+      const s=body.settings||{}; const {error}=await sb.from('luxdecor_site_settings').upsert({id:1,whatsapp:s.whatsapp||'',instagram:s.instagram||'',erp_live_catalog_enabled:s.erpLiveCatalogEnabled!==false,updated_at:new Date().toISOString()}); if(error)throw error; return json(res,200,{ok:true});
     }
     if(action==='uploadUrl'){
       const bucket=body.bucket==='luxdecor-site-assets'?'luxdecor-site-assets':'luxdecor-products'; const ext=safeExt(body.fileName,body.contentType); const folder=String(body.folder||'catalog').replace(/[^a-zA-Z0-9/_-]/g,'-'); const path=`${folder}/${new Date().toISOString().slice(0,10)}/${crypto.randomUUID()}.${ext}`; const {data,error}=await sb.storage.from(bucket).createSignedUploadUrl(path); if(error)throw error; return json(res,200,{path,token:data.token});
