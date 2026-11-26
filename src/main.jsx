@@ -146,7 +146,7 @@ function App(){
  const wa=(text)=>whatsappDigits?`https://wa.me/${whatsappDigits}?text=${encodeURIComponent(text)}`:'';
  const goCategory=(cat)=>{setFilter(cats.includes(cat)?cat:'Todos');setMobileMenu(false);document.getElementById('catalogo')?.scrollIntoView({behavior:'smooth'})};
  return <div className="app-shell">
-  <div className="announcement">Lux Decor <span/> Móveis, interiores e boas histórias</div>{cloudState==='error'&&<div className="cloud-warning">Catálogo em modo de segurança. {cloudMessage}</div>}
+  <div className="announcement announcement-marquee" aria-label="Lux Decor — móveis e interiores, design para sua casa"><div className="announcement-marquee-track" aria-hidden="true">{[0,1].map(k=><div className="announcement-marquee-group" key={k}><span>Lux Decor</span><i>✦</i><span>Móveis e interiores</span><i>✦</i><span>Design para sua casa</span><i>✦</i><span>Atendimento pelo WhatsApp</span><i>✦</i></div>)}</div></div>{cloudState==='error'&&<div className="cloud-warning">Catálogo em modo de segurança. {cloudMessage}</div>}
   <header className="site-header"><div className="header-inner">
    <button className="brand-button" onClick={()=>scrollTo({top:0,behavior:'smooth'})}><Brand/></button>
    <nav className="desktop-nav"><button onClick={()=>goCategory('Todos')}>Catálogo</button><button onClick={()=>goCategory('Sofás')}>Sofás</button><button onClick={()=>goCategory('Poltronas')}>Poltronas</button><button onClick={()=>goCategory('Cadeiras')}>Cadeiras</button><button onClick={()=>goCategory('Mesas e jantar')}>Mesas</button></nav>
