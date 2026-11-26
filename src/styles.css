@@ -207,3 +207,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .admin-live-erp-setting .admin-live-erp-switch input{accent-color:#173b6e;min-width:19px;min-height:19px;margin:0;flex:none}
 .admin-live-erp-setting p{margin:11px 0 0!important;color:#687d90;font-size:12px;line-height:1.65}
 @media(max-width:600px){.admin-live-erp-setting{padding:13px}.admin-live-erp-setting .admin-live-erp-switch{font-size:12px}}
+
+/* Lux Decor: faixa superior de movimento contínuo */
+.announcement-marquee{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:flex-start;white-space:nowrap;height:32px;padding:0!important}
+.announcement-marquee-track{display:flex;align-items:center;gap:0;width:max-content;min-width:max-content;animation:luxAnnouncementScroll 28s linear infinite;will-change:transform}
+.announcement-marquee-group{display:flex;align-items:center;flex:none;gap:31px;padding-right:31px;min-width:max-content}
+.announcement-marquee-group span{display:inline-block;width:auto;height:auto;border-radius:0;background:transparent;color:#fff;opacity:.95;font-size:10px;font-weight:500;letter-spacing:.15em}
+.announcement-marquee-group i{color:#c6b18e;font-size:10px;font-style:normal}
+@keyframes luxAnnouncementScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(max-width:650px){.announcement-marquee{height:29px}.announcement-marquee-group{gap:22px;padding-right:22px}.announcement-marquee-group span{font-size:9px;letter-spacing:.09em}.announcement-marquee-track{animation-duration:23s}}
+@media(prefers-reduced-motion:reduce){.announcement-marquee-track{animation:none;transform:none}}
