@@ -292,23 +292,32 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
     const catalog=JSON.parse(await manifestFile.async('string'));
     if(!Array.isArray(catalog)||catalog.length!==20) throw new Error('O catálogo deve conter 20 produtos.');
     const existing=await adminFetchProducts();
+    const safeBatch=catalog.every(item=>item.product_id&&item.replace_only===true);
+    if(!safeBatch)throw new Error('Este lote precisa conter os IDs de produtos existentes. Use o ZIP corrigido para substituir fotos sem duplicar cadastros.');
+    const seen=new Set();
+    const replacements=catalog.map(item=>{
+      const product=existing.find(p=>String(p.id)===String(item.product_id));
+      if(!product)throw new Error('Produto não encontrado para a foto '+item.arquivo+'. Nenhuma foto será substituída.');
+      if(seen.has(product.id))throw new Error('Produto repetido no ZIP: '+product.name);
+      seen.add(product.id);
+      if(Number(product.sortOrder??product.sort_order)!==100+Number(item.numero))throw new Error('Ordem do produto mudou: '+product.name+'. Atualize o vínculo antes de importar.');
+      return {item,product};
+    });
     let complete=0;
-    for(const item of catalog){
+    for(const {item,product} of replacements){
       const source=zip.file(item.arquivo);
-      if(!source||!item.nome) throw new Error('Arquivo de produto ausente: '+item.arquivo);
-      let product=existing.find(p=>p.name===item.nome);
-      const id=product?.id||(await adminApi('saveProduct',{product:{name:item.nome,category:item.categoria||'Outros',price:null,priceLabel:'Consulte valor',isActive:true,sortOrder:100+Number(item.numero),desc:'',features:[]}})).id;
+      if(!source)throw new Error('Arquivo de produto ausente: '+item.arquivo);
+      // Produtos desativados, como os dois Siena, permanecem desativados.
+      if(product.isActive===false||product.is_active===false){complete++;onProgress({complete,total:20,name:product.name+' (inativo, preservado)'});continue;}
       const blob=await source.async('blob');
       const photo=new File([blob],item.arquivo,{type:'image/jpeg'});
-      onProgress({complete,total:20,name:item.nome});
-      const up=await uploadWithSignedUrl(photo,'luxdecor-products',String(id));
-      await adminApi('addProductImage',{productId:id,url:up.url,path:up.path,sortOrder:0,isCover:true});
-      await adminApi('setCover',{productId:id,url:up.url});
-      if(product){
-        const previous=[...new Set([...(product.images||[]),product.image].filter(Boolean))];
-        for(const url of previous){if(url!==up.url) await adminApi('removeProductImage',{productId:id,url});}
-      }
-      complete++;onProgress({complete,total:20,name:item.nome});
+      onProgress({complete,total:20,name:product.name});
+      const up=await uploadWithSignedUrl(photo,'luxdecor-products',String(product.id));
+      await adminApi('addProductImage',{productId:product.id,url:up.url,path:up.path,sortOrder:0,isCover:true});
+      await adminApi('setCover',{productId:product.id,url:up.url});
+      // Não apagar fotos anteriores automaticamente: a imagem nova substitui a capa,
+      // e o histórico fica disponível para recuperação.
+      complete++;onProgress({complete,total:20,name:product.name});
     }
     return complete;
   }
