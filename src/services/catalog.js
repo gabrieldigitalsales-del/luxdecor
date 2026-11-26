@@ -292,10 +292,10 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
     const catalog=JSON.parse(await manifestFile.async('string'));
     if(!Array.isArray(catalog)||catalog.length!==20) throw new Error('O catálogo deve conter 20 produtos.');
     const existing=await adminFetchProducts();
-    const safeBatch=catalog.every(item=>item.product_id&&item.replace_only===true);
+    const safeBatch=catalog.every(item=>item.replace_only===true&&(item.skip===true||item.product_id));
     if(!safeBatch)throw new Error('Este lote precisa conter os IDs de produtos existentes. Use o ZIP corrigido para substituir fotos sem duplicar cadastros.');
     const seen=new Set();
-    const replacements=catalog.map(item=>{
+    const replacements=catalog.filter(item=>!item.skip).map(item=>{
       const product=existing.find(p=>String(p.id)===String(item.product_id));
       if(!product)throw new Error('Produto não encontrado para a foto '+item.arquivo+'. Nenhuma foto será substituída.');
       if(seen.has(product.id))throw new Error('Produto repetido no ZIP: '+product.name);
@@ -303,7 +303,7 @@ export async function importCatalogZip(zipFile,onProgress=()=>{}){
       if(Number(product.sortOrder??product.sort_order)!==100+Number(item.numero))throw new Error('Ordem do produto mudou: '+product.name+'. Atualize o vínculo antes de importar.');
       return {item,product};
     });
-    let complete=0;
+    let complete=catalog.length-replacements.length;
     for(const {item,product} of replacements){
       const source=zip.file(item.arquivo);
       if(!source)throw new Error('Arquivo de produto ausente: '+item.arquivo);
